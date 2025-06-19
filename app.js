@@ -7,10 +7,22 @@ require('dotenv').config();
 
 const app = express();
 
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://fashion-app-cyan.vercel.app',
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL,
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Không được phép bởi CORS'));
+    }
+  },
   credentials: true,
 }));
+
 
 // Chỉ khai báo 1 lần express.json() với limit 10mb
 app.use(express.json({ limit: "10mb" }));
