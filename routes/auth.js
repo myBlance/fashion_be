@@ -46,39 +46,39 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/register
-// router.post('/register', async (req, res) => {
-//   const { firstName, lastName, email, phone, password, confirm } = req.body;
+POST /api/auth/register
+router.post('/register', async (req, res) => {
+  const { firstName, lastName, email, phone, password, confirm } = req.body;
 
-//   if (!firstName || !lastName || !email || !phone || !password || !confirm) {
-//     return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin.' });
-//   }
+  if (!firstName || !lastName || !email || !phone || !password || !confirm) {
+    return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin.' });
+  }
 
-//   if (password !== confirm) {
-//     return res.status(400).json({ message: 'Mật khẩu xác nhận không khớp.' });
-//   }
+  if (password !== confirm) {
+    return res.status(400).json({ message: 'Mật khẩu xác nhận không khớp.' });
+  }
 
-//   try {
-//     const existingUser = await User.findOne({ email });
-//     if (existingUser) {
-//       return res.status(409).json({ message: 'Email đã được sử dụng.' });
-//     }
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: 'Email đã được sử dụng.' });
+    }
 
-//     const newUser = new User({
-//       username: email, // dùng email làm username
-//       email,
-//       password,
-//       name: `${lastName} ${firstName}`,
-//       role: 'client',
-//     });
+    const newUser = new User({
+      username: email, // dùng email làm username
+      email,
+      password,
+      name: `${lastName} ${firstName}`,
+      role: 'client',
+    });
 
-//     await newUser.save();
+    await newUser.save();
 
-//     res.status(201).json({ message: 'Đăng ký thành công.' });
-//   } catch (error) {
-//     console.error('Lỗi đăng ký:', error);
-//     res.status(500).json({ message: 'Lỗi server' });
-//   }
-// });
+    res.status(201).json({ message: 'Đăng ký thành công.' });
+  } catch (error) {
+    console.error('Lỗi đăng ký:', error);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
 
 module.exports = router;
