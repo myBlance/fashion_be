@@ -30,10 +30,9 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Sai tên đăng nhập hoặc mật khẩu' });
     }
 
-    // Now using the validated JWT secret
     const token = jwt.sign(
       { username: user.username, role: user.role }, 
-      process.env.JWT_SECRET, // Using the env variable directly
+      process.env.JWT_SECRET, 
       { expiresIn: '1h' }
     );
     res.json({
@@ -43,6 +42,41 @@ router.post('/login', async (req, res) => {
     });
   } catch (err) {
     console.error('Lỗi khi đăng nhập:', err);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
+
+// POST /api/auth/register
+router.post('/register', async (req, res) => {
+  const { firstName, lastName, email, phone, password, confirm } = req.body;
+
+  if (!firstName || !lastName || !email || !phone || !password || !confirm) {
+    return res.status(400).json({ message: 'Vui lòng nhập đầy đủ thông tin.' });
+  }
+
+  if (password !== confirm) {
+    return res.status(400).json({ message: 'Mật khẩu xác nhận không khớp.' });
+  }
+
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({ message: 'Email đã được sử dụng.' });
+    }
+
+    const newUser = new User({
+      username: email, // dùng email làm username
+      email,
+      password,
+      name: `${lastName} ${firstName}`,
+      role: 'client',
+    });
+
+    await newUser.save();
+
+    res.status(201).json({ message: 'Đăng ký thành công.' });
+  } catch (error) {
+    console.error('Lỗi đăng ký:', error);
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
