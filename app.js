@@ -1,8 +1,10 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/user');
+const authRoutes = require('./src/routes/auth');
+const userRoutes = require('./src/routes/user');
+const productRoutes = require('./src/routes/product');
+
 require('dotenv').config();
 
 const app = express();
@@ -21,6 +23,7 @@ app.use(cors({
     }
   },
   credentials: true,
+  exposedHeaders: ['Content-Range'],
 }));
 
 
@@ -36,6 +39,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
