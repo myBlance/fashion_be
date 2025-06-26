@@ -7,7 +7,7 @@ const productSchema = new mongoose.Schema({
   price: { type: Number, required: true },
   category: { type: String }, // Bỏ required tạm thời
   originalPrice: { type: Number }, // Bỏ required tạm thời
-  status: { type: String, enum: ['selling', 'stopped'], default: 'selling' },
+  status: { type: String, enum: ['selling', 'stopped', 'sold_out' ], default: 'selling' },
   type: { type: String }, // Bỏ required tạm thời
   style: { type: String }, // Bỏ required tạm thời
   colors: { type: [String], default: [] },

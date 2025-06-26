@@ -8,12 +8,12 @@ const authMiddleware = (req, res, next) => {
               req.cookies?.token || 
               req.query?.token;
 
-  console.log("Token extraction attempt:", {
-    authHeader: req.headers.authorization,
-    cookieToken: req.cookies?.token,
-    queryToken: req.query?.token,
-    finalToken: token
-  });
+  // console.log("Token extraction attempt:", {
+  //   authHeader: req.headers.authorization,
+  //   cookieToken: req.cookies?.token,
+  //   queryToken: req.query?.token,
+  //   finalToken: token
+  // });
 
   if (!token) {
     return res.status(401).json({ 
