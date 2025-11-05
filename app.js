@@ -6,7 +6,9 @@ const userRoutes = require('./src/routes/user');
 const productRoutes = require('./src/routes/product');
 const orderRoutes = require('./src/routes/order')
 const cartRoutes = require('./src/routes/cart')
+const wishlistRoutes = require('./src/routes/wishlist')
 const path = require('path');
+
 
 require('dotenv').config();
 
@@ -45,6 +47,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/carts',cartRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 
 const PORT = process.env.PORT || 5000;
