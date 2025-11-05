@@ -1,19 +1,11 @@
 require('dotenv').config(); // Must be at the very top
-
 const jwt = require("jsonwebtoken");
 
 const authMiddleware = (req, res, next) => {
-  // Try multiple ways to get the token
-  let token = req.headers.authorization?.split(' ')[1] || 
-              req.cookies?.token || 
-              req.query?.token;
-
-  // console.log("Token extraction attempt:", {
-  //   authHeader: req.headers.authorization,
-  //   cookieToken: req.cookies?.token,
-  //   queryToken: req.query?.token,
-  //   finalToken: token
-  // });
+  // Lấy token từ header, cookie hoặc query
+  const token = req.headers.authorization?.split(' ')[1] || 
+                req.cookies?.token || 
+                req.query?.token;
 
   if (!token) {
     return res.status(401).json({ 
@@ -29,12 +21,22 @@ const authMiddleware = (req, res, next) => {
   } catch (error) {
     console.error("Token verification failed:", {
       error: error.message,
-      token: token,
+      token,
       secretSet: !!process.env.JWT_SECRET
     });
-    return res.status(403).json({ 
+
+    if (error.name === "TokenExpiredError") {
+      // Token hết hạn
+      return res.status(401).json({
+        success: false,
+        message: "Token hết hạn, vui lòng đăng nhập lại"
+      });
+    }
+
+    // Token không hợp lệ / malformed
+    return res.status(401).json({
       success: false,
-      message: "Invalid or expired token",
+      message: "Token không hợp lệ",
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }

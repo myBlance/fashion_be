@@ -3,21 +3,20 @@ const mongoose = require('mongoose');
 const productSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
-  brand: { type: String }, // Bỏ required tạm thời
+  brand: { type: String },
   price: { type: Number, required: true },
-  category: { type: String }, // Bỏ required tạm thời
-  originalPrice: { type: Number }, // Bỏ required tạm thời
-  status: { type: String, enum: ['selling', 'stopped', 'sold_out' ], default: 'selling' },
-  type: { type: String }, // Bỏ required tạm thời
-  style: { type: String }, // Bỏ required tạm thời
+  originalPrice: { type: Number },
+  category: { type: String },
+  status: { type: String, enum: ['selling','stopped','sold_out'], default: 'selling' },
+  type: { type: String },
+  style: { type: String },
   colors: { type: [String], default: [] },
   sizes: { type: [String], default: [] },
   sold: { type: Number, default: 0 },
-  total: { type: Number, default: 0 }, // Bỏ required
-  thumbnail: { type: String, default: 'default.jpg' }, // Bỏ required
-  images: { type: [String], default: ['default.jpg'] }, // Bỏ required
-  sale: { type: Boolean, default: false },
-  delivery: { type: String }, // Bỏ required tạm thời
+  total: { type: Number, default: 0 },
+  thumbnail: { type: String, default: '/assets/images/xanh.webp' },
+  images: { type: [String], default: ['default.jpg'] },
+  delivery: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 

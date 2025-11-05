@@ -16,7 +16,7 @@ const products = [
     type: "quần",
     style: "trẻ trung",
     sizes: ["S", "M", "L"],
-    sold: 10,
+    sold: 10,  
     total: 50,
     thumbnail: "/assets/images/xanh.webp",
     images: [

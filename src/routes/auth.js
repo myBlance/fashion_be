@@ -1,11 +1,11 @@
-require('dotenv').config(); 
+require('dotenv').config(); // Nếu bạn chưa gọi ở server.js thì giữ dòng này
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Add validation for the JWT secret
+// Validate JWT secret
 if (!process.env.JWT_SECRET) {
   throw new Error('Missing JWT_SECRET in environment variables');
 }
@@ -19,7 +19,13 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ username });
+    // tìm user theo username hoặc email
+    const user = await User.findOne({ 
+      $or: [
+        { username: username }, 
+        { email: username } 
+      ] 
+    });
 
     if (!user) {
       return res.status(401).json({ message: 'Sai tên đăng nhập hoặc mật khẩu' });
@@ -31,13 +37,15 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { username: user.username, role: user.role }, 
-      process.env.JWT_SECRET, 
+      { username: user.username, role: user.role },
+      process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
+
     res.json({
       message: 'Đăng nhập thành công',
       role: user.role,
+      userId: user._id,
       token,
     });
   } catch (err) {
@@ -45,6 +53,7 @@ router.post('/login', async (req, res) => {
     res.status(500).json({ message: 'Lỗi server' });
   }
 });
+
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -59,17 +68,20 @@ router.post('/register', async (req, res) => {
   }
 
   try {
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ username: email });
     if (existingUser) {
       return res.status(409).json({ message: 'Email đã được sử dụng.' });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const newUser = new User({
       username: email, // dùng email làm username
       email,
-      password,
+      password: hashedPassword,
       name: `${lastName} ${firstName}`,
       role: 'client',
+      phone,
     });
 
     await newUser.save();
