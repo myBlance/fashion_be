@@ -1,14 +1,33 @@
+// models/User.js
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
+const addressSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: { type: String, required: true },
+  type: { type: String, enum: ['home', 'work', 'other'], default: 'home' },
+  isDefault: { type: Boolean, default: false },
+});
+
 const userSchema = new mongoose.Schema({
-  username: { type: String, required: true, unique: true }, 
+  username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, enum: ['admin', 'client'], default: 'client' },
 
   name: { type: String, default: "" },
   email: { type: String, required: true, unique: true },
   avatarUrl: { type: String, default: "" },
+
+  // Thêm trường địa chỉ
+  addresses: [addressSchema],
+
+  // Thông tin bổ sung (nếu cần)
+  phone: { type: String },
+  gender: { type: String, enum: ['male', 'female', 'other'], default: 'male' },
+  birthDate: { type: Date },
+}, {
+  timestamps: true, // createdAt, updatedAt
 });
 
 // So sánh mật khẩu
