@@ -1,3 +1,4 @@
+// routes/orders.js
 const express = require('express');
 const Order = require('../models/Order');
 
@@ -5,8 +6,8 @@ const router = express.Router();
 
 /**
  * @route   GET /api/orders
- * @desc    Lấy danh sách đơn hàng có phân trang, lọc, sắp xếp
- * @access  Public
+ * @desc    Lấy danh sách đơn hàng
+ * @access  Public (có thể thêm auth nếu cần)
  */
 router.get('/', async (req, res) => {
   try {
@@ -20,7 +21,7 @@ router.get('/', async (req, res) => {
 
     const query = {};
     for (let key in filters) {
-      query[key] = new RegExp(filters[key], 'i'); // tìm kiếm mờ
+      query[key] = new RegExp(filters[key], 'i');
     }
 
     const total = await Order.countDocuments(query);
@@ -29,8 +30,8 @@ router.get('/', async (req, res) => {
       .sort({ [sortField]: sortOrder })
       .skip(start)
       .limit(limit)
-      .populate('user', 'username email') // populate user
-      .populate('products.product', 'name price'); // populate sản phẩm
+      .populate('user', 'username email')
+      .populate('products.product', 'name price');
 
     res.setHeader('Content-Range', `orders ${start}-${end - 1}/${total}`);
     res.setHeader('Access-Control-Expose-Headers', 'Content-Range');
@@ -44,7 +45,8 @@ router.get('/', async (req, res) => {
 
 /**
  * @route   GET /api/orders/:id
- * @desc    Lấy chi tiết đơn hàng theo ID
+ * @desc    Lấy chi tiết đơn hàng
+ * @access  Public
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -64,6 +66,7 @@ router.get('/:id', async (req, res) => {
 /**
  * @route   POST /api/orders
  * @desc    Tạo đơn hàng mới
+ * @access  Public
  */
 router.post('/', async (req, res) => {
   try {
@@ -79,6 +82,7 @@ router.post('/', async (req, res) => {
 /**
  * @route   PUT /api/orders/:id
  * @desc    Cập nhật đơn hàng
+ * @access  Public
  */
 router.put('/:id', async (req, res) => {
   try {
@@ -95,6 +99,7 @@ router.put('/:id', async (req, res) => {
 /**
  * @route   DELETE /api/orders/:id
  * @desc    Xoá đơn hàng
+ * @access  Public
  */
 router.delete('/:id', async (req, res) => {
   try {

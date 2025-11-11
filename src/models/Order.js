@@ -1,3 +1,4 @@
+// models/Order.js
 const mongoose = require('mongoose');
 
 const OrderSchema = new mongoose.Schema({
@@ -5,18 +6,20 @@ const OrderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   products: [
     {
-      product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+      // ✅ Sửa lại: Dùng String thay vì ObjectId
+      product: { type: String, required: true }, // Giờ đây có thể là "DOLA3901"
       quantity: { type: Number, required: true, default: 1 },
-      selectedColor: { type: String },   // nếu có chọn màu
-      selectedSize: { type: String },    // nếu có chọn size
+      selectedColor: { type: String },
+      selectedSize: { type: String },
     }
   ],
   totalPrice: { type: Number, required: true },
   status: {
     type: String,
-    enum: ['pending', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending',
   },
+  paymentMethod: { type: String, default: 'seepay' },
   shippingAddress: {
     fullName: String,
     phone: String,
