@@ -1,3 +1,4 @@
+// app.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -74,8 +75,9 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('✅ MongoDB connected'))
 .catch(err => console.log('❌ MongoDB connection error:', err));
 
-// ✅ Import Order model
+// ✅ Import Order và Product model
 const Order = require('./src/models/Order');
+const Product = require('./src/models/Product'); // <-- Thêm dòng này
 
 // ✅ Lấy SePay API Key từ .env
 const SEPAY_API_KEY = process.env.SEPAY_API_KEY;
@@ -92,22 +94,31 @@ app.post('/api/create-order', async (req, res) => {
   const qrUrl = `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${amount}&addInfo=${orderId}`;
 
   try {
-    const newOrder = new Order({
-      id: orderId,
-      user: userId,
-      products: products.map(p => ({
-        product: p.productId,
+    // 🔴 CHUYỂN ĐỔI: Chuyển product từ string (id) sang ObjectId
+    const convertedProducts = await Promise.all(products.map(async (p) => {
+      const productDoc = await Product.findOne({ id: p.productId }); // <-- Bây giờ Product đã được định nghĩa
+      if (!productDoc) {
+        throw new Error(`Sản phẩm ${p.productId} không tồn tại`);
+      }
+      return {
+        product: productDoc._id, // Gán ObjectId
         quantity: p.quantity,
         selectedColor: p.color,
         selectedSize: p.size,
-      })),
+      };
+    }));
+
+    const newOrder = new Order({
+      id: orderId,
+      user: userId,
+      products: convertedProducts, // Dùng mảng đã chuyển đổi
       totalPrice: amount,
       status: 'pending',
       paymentMethod: 'seepay',
       shippingAddress,
     });
 
-    const savedOrder = await newOrder.save();
+    const savedOrder = await newOrder.save(); // Bây giờ sẽ không lỗi validation
 
     console.log(`🆕 Đã tạo đơn hàng DB: ${savedOrder.id}`);
 

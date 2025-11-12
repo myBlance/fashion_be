@@ -6,13 +6,14 @@ const OrderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   products: [
     {
-      // ✅ Sửa lại: Dùng String thay vì ObjectId
-      product: { type: String, required: true }, // Giờ đây có thể là "DOLA3901"
+      // 🔴 Thay đổi: Dùng ObjectId để có thể populate
+      product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
       quantity: { type: Number, required: true, default: 1 },
       selectedColor: { type: String },
       selectedSize: { type: String },
     }
   ],
+  // ... các trường khác giữ nguyên
   totalPrice: { type: Number, required: true },
   status: {
     type: String,
