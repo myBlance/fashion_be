@@ -5,7 +5,48 @@ const User = require('../models/User');
 // --- ADMIN: CRUD Voucher ---
 const createVoucher = async (req, res) => {
   try {
-    const { code, name, description, type, value, minOrderAmount, validFrom, validUntil, maxUses, maxUsesPerUser, isActive } = req.body;
+    let bodyData = req.body;
+
+    // ✅ Nếu bodyData là undefined hoặc không phải object, kiểm tra xem có file không
+    if (!bodyData || typeof bodyData !== 'object') {
+      console.log('⚠️ req.body là:', req.body);
+      console.log('⚠️ req có file không?', !!req.file);
+      console.log('⚠️ req có files không?', !!req.files);
+
+      return res.status(400).json({
+        success: false,
+        message: 'Dữ liệu không hợp lệ hoặc không được gửi đúng định dạng',
+      });
+    }
+
+    // ✅ FormData gửi từ React Admin sẽ có các trường là string, nên cần parse lại
+    const {
+      code,
+      name,
+      description,
+      type,
+      value,
+      minOrderAmount,
+      validFrom,
+      validUntil,
+      maxUses,
+      maxUsesPerUser,
+      isActive
+    } = bodyData;
+
+    // ✅ Parse lại các trường số nếu là string
+    const parsedValue = typeof value === 'string' ? parseFloat(value) : value;
+    const parsedMinOrderAmount = typeof minOrderAmount === 'string' ? parseFloat(minOrderAmount) : minOrderAmount;
+    const parsedMaxUses = typeof maxUses === 'string' ? parseInt(maxUses) : maxUses;
+    const parsedMaxUsesPerUser = typeof maxUsesPerUser === 'string' ? parseInt(maxUsesPerUser) : maxUsesPerUser;
+    const parsedIsActive = typeof isActive === 'string' ? isActive === 'true' : isActive;
+
+    if (!code || !name || !type || parsedValue === undefined || parsedMinOrderAmount === undefined || !validFrom || !validUntil) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu trường bắt buộc',
+      });
+    }
 
     // validate date
     if (new Date(validFrom) >= new Date(validUntil)) {
@@ -20,22 +61,33 @@ const createVoucher = async (req, res) => {
       name,
       description,
       type,
-      value,
-      minOrderAmount,
+      value: parsedValue,
+      minOrderAmount: parsedMinOrderAmount,
       validFrom,
       validUntil,
-      maxUses,
-      maxUsesPerUser,
-      isActive: isActive !== undefined ? isActive : true,
-      createdBy: req.user._id, // giả sử đã dùng middleware auth & req.user là admin
+      maxUses: parsedMaxUses || 1,
+      maxUsesPerUser: parsedMaxUsesPerUser || 1,
+      isActive: parsedIsActive !== undefined ? parsedIsActive : true,
+      createdBy: req.user.id,
     });
 
     await voucher.save();
     res.status(201).json({
       success: true,
-      data: voucher,
+       voucher,
     });
   } catch (err) {
+    console.error('Lỗi trong createVoucher:', err);
+
+    // ✅ Xử lý lỗi duplicate key
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyValue)[0];
+      return res.status(400).json({
+        success: false,
+        message: `Mã ${field} đã tồn tại`,
+      });
+    }
+
     res.status(400).json({
       success: false,
       message: err.message,
@@ -45,7 +97,6 @@ const createVoucher = async (req, res) => {
 
 const getAllVouchers = async (req, res) => {
   try {
-    // ✅ Sửa lại để trả về đúng cấu trúc
     const isPublic = req.originalUrl.includes('/public');
 
     let filters = {};
@@ -58,17 +109,27 @@ const getAllVouchers = async (req, res) => {
     }
 
     const vouchers = await Voucher.find(filters).populate('createdBy', 'username name');
+
+    // Map dữ liệu an toàn
+    const safeVouchers = vouchers.map(v => ({
+      ...v._doc,
+      validFrom: v.validFrom ? new Date(v.validFrom).toISOString() : null,
+      validUntil: v.validUntil ? new Date(v.validUntil).toISOString() : null,
+    }));
+
     res.json({
       success: true,
-      data: vouchers,
+      data: safeVouchers, // ✅ đổi từ safeVouchers → data
     });
   } catch (err) {
+    console.error('Lỗi trong getAllVouchers:', err);
     res.status(500).json({
       success: false,
       message: err.message,
     });
   }
 };
+
 
 const getVoucherById = async (req, res) => {
   try {
@@ -226,16 +287,9 @@ const claimVoucher = async (req, res) => {
 
 // Xem danh sách voucher của người dùng (chưa dùng + đã dùng)
 const getUserVouchers = async (req, res) => {
-  console.log('🚀 getUserVouchers được gọi'); // ✅ Log đầu tiên
-  console.log('👤 req.user.id =', req.user.id);
-
+  console.log('🚀 getUserVouchers được gọi');
   try {
-    // ✅ Thêm log để xác nhận userId là gì
     const userId = req.user.id;
-    console.log('🔍 Tìm UserVoucher với userId =', userId);
-
-    // ✅ Thêm log trước khi query
-    console.log('🔍 Bắt đầu query UserVoucher.find');
 
     const userVouchers = await UserVoucher.find({ userId })
       .populate({
@@ -244,40 +298,23 @@ const getUserVouchers = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
-    console.log('✅ Query thành công, số lượng =', userVouchers.length);
-
-    // ✅ Thêm log trước khi map
-    console.log('🔍 Bắt đầu map dữ liệu');
-
-    const result = userVouchers.map(uv => {
-      if (!uv.voucherId) {
-        console.warn('⚠️ VoucherId không tồn tại cho UserVoucher:', uv._id);
-        return null;
-      }
-
+    const data = userVouchers.map(uv => {
+      if (!uv.voucherId) return null;
       const voucher = uv.voucherId;
 
-      let expiryDate = '2099-12-31T23:59:59.999Z';
-      if (voucher.validUntil) {
-        const date = new Date(voucher.validUntil);
-        if (!isNaN(date.getTime())) {
-          expiryDate = date.toISOString();
-        } else {
-          console.warn('⚠️ validUntil không hợp lệ:', voucher.validUntil);
-        }
-      }
+      const expiryDate = voucher.validUntil
+        ? new Date(voucher.validUntil).toISOString()
+        : '2099-12-31T23:59:59.999Z';
 
-      let discountText = 'Giảm giá';
-      if (voucher.type === 'percentage') {
-        discountText = `${voucher.value || 0}%`;
-      } else if (voucher.type === 'fixed') {
-        discountText = `₫${(voucher.value || 0).toLocaleString()}`;
-      }
+      const discountValue = Number(voucher.value) || 0;
+      const minOrderValue = Number(voucher.minOrderAmount) || 0;
 
-      let conditionText = `Đơn tối thiểu 0 VND`;
-      if (voucher.minOrderAmount) {
-        conditionText = `Đơn tối thiểu ${(voucher.minOrderAmount || 0).toLocaleString()} VND`;
-      }
+      const discountText =
+        voucher.type === 'percentage'
+          ? `${discountValue}%`
+          : `₫${discountValue.toLocaleString()}`;
+
+      const conditionText = `Đơn tối thiểu ${minOrderValue.toLocaleString()} VND`;
 
       return {
         id: uv._id?.toString() || 'unknown-id',
@@ -288,34 +325,29 @@ const getUserVouchers = async (req, res) => {
           conditionText,
           isFreeShip: false,
           shopName: 'Shop ABC',
-          minOrderValue: voucher.minOrderAmount || 0,
+          minOrderValue,
           expiryDate,
           discountType: voucher.type || 'fixed',
-          discountValue: voucher.value || 0,
+          discountValue,
         },
-        claimedAt: uv.createdAt?.toISOString ? uv.createdAt.toISOString() : '2023-01-01T00:00:00.000Z',
-        usedAt: uv.usedAt ? (uv.usedAt.toISOString ? uv.usedAt.toISOString() : null) : null,
+        claimedAt: uv.createdAt?.toISOString?.() ?? new Date().toISOString(),
+        usedAt: uv.usedAt?.toISOString?.() ?? null,
         isUsed: !!uv.usedAt,
       };
     }).filter(Boolean);
 
-    console.log('✅ Map hoàn tất, số lượng =', result.length);
-
     res.json({
       success: true,
-       result,
+      data, // ✅ Chuẩn hóa về `data`
     });
   } catch (err) {
-    console.error('❌ LỖI CHI TIẾT TRONG getUserVouchers:', err);
+    console.error('❌ Lỗi trong getUserVouchers:', err);
     res.status(500).json({
       success: false,
-      message: 'Lỗi máy chủ nội bộ',
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+      message: err.message,
     });
   }
 };
-
 
 
 // [Tuỳ chọn] Dùng voucher (trong flow tạo đơn hàng)

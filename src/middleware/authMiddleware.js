@@ -55,7 +55,11 @@ const authMiddleware = (req, res, next) => {
 
 // Middleware kiểm tra quyền admin
 const admin = async (req, res, next) => {
+  console.log('🔐 Admin middleware được gọi');
+  console.log('👤 req.user =', req.user);
+
   if (!req.user) {
+    console.log('❌ req.user không tồn tại');
     return res.status(401).json({ 
       success: false,
       message: "Bạn cần đăng nhập để thực hiện hành động này" 
@@ -63,15 +67,30 @@ const admin = async (req, res, next) => {
   }
 
   try {
+    console.log('🔍 Tìm user với id =', req.user.id);
     const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    console.log('🔍 User từ DB =', user);
+
+    if (!user) {
+      console.log('❌ User không tồn tại trong DB');
       return res.status(403).json({ 
         success: false,
         message: "Bạn không có quyền thực hiện hành động này" 
       });
     }
+
+    if (user.role !== 'admin') {
+      console.log('❌ User không phải admin, role =', user.role);
+      return res.status(403).json({ 
+        success: false,
+        message: "Bạn không có quyền thực hiện hành động này" 
+      });
+    }
+
+    console.log('✅ User có quyền admin, gọi next()');
     next();
   } catch (error) {
+    console.error('❌ Lỗi trong admin middleware:', error);
     res.status(500).json({ 
       success: false, 
       message: "Lỗi server khi kiểm tra quyền admin" 
