@@ -198,6 +198,38 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/**
+ * @route   PUT /api/orders/:id/mark-delivered
+ * @desc    Đánh dấu đơn hàng là đã nhận
+ * @access  Private
+ */
+router.put('/:id/mark-delivered', async (req, res) => {
+  try {
+    const order = await Order.findOne({ id: req.params.id });
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
+    }
+
+    // Chỉ cho phép đánh dấu nếu trạng thái là shipped
+    if (order.status !== 'shipped') {
+      return res.status(400).json({ success: false, message: 'Chỉ có thể đánh dấu đơn hàng đang giao là đã nhận' });
+    }
+
+    order.status = 'delivered';
+    await order.save();
+
+    // Populate lại user và products
+    const populatedOrder = await Order.findById(order._id)
+      .populate('user', 'username email')
+      .populate('products.product', 'name price thumbnail images');
+
+    res.json({ success: true, order: populatedOrder });
+  } catch (err) {
+    console.error('❌ Lỗi PUT /orders/:id/mark-delivered:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 
 /**
  * @route   PUT /api/orders/:id/cancel
