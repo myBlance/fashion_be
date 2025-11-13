@@ -15,7 +15,7 @@ const productRoutes = require('./src/routes/product');
 const orderRoutes = require('./src/routes/order');
 const cartRoutes = require('./src/routes/cart');
 const wishlistRoutes = require('./src/routes/wishlist');
-const voucherRoutes = require('./src/routes/vouchers');
+const voucherRoutes = require('./src/routes/voucherRoutes');
 const path = require('path');
 
 const app = express();

@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
-const authMiddleware = require('../middleware/authMiddleware');
+const { protect } = require('../middleware/authMiddleware'); // ✅ Sửa ở đây
 
 // Áp dụng middleware xác thực cho tất cả route dưới đây
-router.use(authMiddleware);
+router.use(protect);
 
 /**
  * @route   GET /api/users/profile
@@ -370,6 +370,12 @@ router.put('/change-password', [
     console.error('Lỗi khi đổi mật khẩu:', error);
     return res.status(500).json({ success: false, message: 'Lỗi máy chủ' });
   }
+});
+
+// routes/user.js
+router.get('/debug-test', async (req, res) => {
+  console.log('👤 /users/debug-test được gọi, req.user =', req.user);
+  res.json({ message: 'OK from user route', user: req.user });
 });
 
 module.exports = router;

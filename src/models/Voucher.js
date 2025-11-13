@@ -1,72 +1,75 @@
+// models/Voucher.js
 const mongoose = require('mongoose');
 
 const voucherSchema = new mongoose.Schema({
   code: {
     type: String,
     required: true,
-    unique: true, // đã tự tạo index
+    unique: true,
     uppercase: true,
     trim: true,
   },
-  discountType: {
+  name: {
     type: String,
-    enum: ['fixed', 'percent'],
     required: true,
   },
-  discountValue: {
-    type: Number,
+  description: {
+    type: String,
+    default: '',
+  },
+
+  // Loại giảm: phần trăm hoặc cố định
+  type: {
+    type: String,
+    enum: ['percentage', 'fixed'],
     required: true,
+  },
+  value: {
+    type: Number,
+    required: true, // ví dụ: 10% hoặc 50000 VND
     min: 0,
   },
-  discountText: {
-    type: String,
-    required: true,
-  },
-  conditionText: {
-    type: String,
-    required: true,
-  },
-  minOrderValue: {
+
+  // Điều kiện áp dụng
+  minOrderAmount: {
     type: Number,
-    required: true,
     default: 0,
   },
-  shopName: {
-    type: String,
-    required: true,
-  },
-  expiryDate: {
+
+  // Ngày hiệu lực
+  validFrom: {
     type: Date,
     required: true,
   },
-  isFreeShip: {
-    type: Boolean,
-    default: false,
+  validUntil: {
+    type: Date,
+    required: true,
   },
+
+  // Giới hạn
+  maxUses: {
+    type: Number,
+    default: 1, // 1 lần dùng toàn hệ thống (nếu là voucher chung)
+  },
+  maxUsesPerUser: {
+    type: Number,
+    default: 1, // 1 lần dùng mỗi người
+  },
+
+  // Trạng thái
   isActive: {
     type: Boolean,
     default: true,
   },
-  usageLimit: {
-    type: Number,
-    default: 100,
-  },
-  usedCount: {
-    type: Number,
-    default: 0,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
 
-voucherSchema.index({ expiryDate: 1 });
-voucherSchema.index({ isActive: 1 });
-voucherSchema.index({ shopName: 1 });
+  // Người tạo (admin)
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+}, {
+  timestamps: true,
+});
 
 module.exports = mongoose.model('Voucher', voucherSchema);
