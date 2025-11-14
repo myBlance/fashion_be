@@ -1,7 +1,7 @@
-
 const mongoose = require('mongoose');
 const Review = require('../models/Review');
 const Order = require('../models/Order');
+const Product = require('../models/Product'); // ✅ Import Product model
 
 const multer = require('multer');
 const path = require('path');
@@ -31,12 +31,10 @@ const upload = multer({
 
 const uploadImages = upload.array('images', 5); // tối đa 5 ảnh
 
-// -------------------- API --------------------
-
 // POST /api/reviews
 const createReview = async (req, res) => {
   uploadImages(req, res, async (err) => {
-    // ... phần upload ...
+    if (err) return res.status(400).json({ success: false, message: err.message });
 
     try {
       const { orderId, productId, rating, comment } = req.body;
@@ -48,7 +46,6 @@ const createReview = async (req, res) => {
         });
       }
 
-      // ✅ Sửa lại: dùng findOne thay vì findById
       const order = await Order.findOne({ id: orderId, user: req.user.id });
       if (!order) {
         return res.status(404).json({
@@ -57,7 +54,36 @@ const createReview = async (req, res) => {
         });
       }
 
-      // ... phần còn lại ...
+      const existingReview = await Review.findOne({
+        orderId,
+        productId,
+        userId: req.user.id,
+      });
+      if (existingReview) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bạn đã đánh giá sản phẩm này rồi.',
+        });
+      }
+
+      const imagePaths = req.files ? req.files.map(f => `/uploads/review-images/${f.filename}`) : [];
+
+      const newReview = new Review({
+        orderId,
+        productId,
+        userId: req.user.id,
+        rating: Number(rating),
+        comment,
+        images: imagePaths,
+      });
+
+      await newReview.save();
+
+      res.status(201).json({
+        success: true,
+        message: 'Đánh giá đã được gửi thành công!',
+        newReview,
+      });
     } catch (err) {
       console.error('Lỗi khi tạo đánh giá:', err);
       res.status(500).json({ success: false, message: err.message });
@@ -65,7 +91,7 @@ const createReview = async (req, res) => {
   });
 };
 
-// GET /api/reviews/:productId
+// GET /api/reviews/product/:id
 const getProductReviewsById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -119,8 +145,57 @@ const checkReviewExists = async (req, res) => {
   }
 };
 
+// GET /api/reviews (cho react-admin)
+const getReviewsForAdmin = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, rating, productId, orderId, userId, _start, _end, _sort, _order } = req.query;
+
+    const filter = {};
+    if (rating) filter.rating = parseInt(rating);
+    if (productId) filter.productId = productId;
+    if (orderId) filter.orderId = orderId;
+    if (userId) filter.userId = userId;
+
+    const skip = _start ? parseInt(_start) : (parseInt(page) - 1) * parseInt(limit);
+    const take = _end ? parseInt(_end) - parseInt(_start) : parseInt(limit);
+
+    const sort = {};
+    if (_sort) {
+      sort[_sort] = _order === 'ASC' ? 1 : -1;
+    } else {
+      sort.createdAt = -1;
+    }
+
+    const reviews = await Review.find(filter)
+      .populate('userId', 'username')
+      .sort(sort)
+      .skip(skip)
+      .limit(take);
+
+    // ✅ Lấy tên và mã sản phẩm theo productId (ObjectId)
+    const reviewsWithProductInfo = await Promise.all(reviews.map(async (review) => {
+      // ✅ Dùng Product.findById để tìm theo ObjectId
+      const product = await Product.findById(review.productId).select('name id'); // ✅ Lấy cả name và id
+      return {
+        ...review.toObject(),
+        productName: product?.name || 'N/A',
+        productCode: product?.id || 'N/A', // ✅ Mã sản phẩm
+      };
+    }));
+
+    const total = await Review.countDocuments(filter);
+
+    res.header('Content-Range', `items 0-${reviews.length}/${total}`);
+    res.json(reviewsWithProductInfo); // ✅ Trả về dữ liệu có tên và mã sản phẩm
+  } catch (err) {
+    console.error('Lỗi khi lấy danh sách đánh giá:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   createReview,
   getProductReviewsById,
   checkReviewExists,
+  getReviewsForAdmin,
 };

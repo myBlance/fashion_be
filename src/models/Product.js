@@ -17,7 +17,9 @@ const productSchema = new mongoose.Schema({
   thumbnail: { type: String, default: ' ' },
   images: { type: [String], default: ['default.jpg'] },
   delivery: { type: String },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  description: { type: String },
+  details: { type: String },
 });
 
 module.exports = mongoose.model('Product', productSchema);

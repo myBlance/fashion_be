@@ -71,7 +71,6 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-
 // ======================================================
 // 🟢 POST (create) product
 router.post(
@@ -128,6 +127,9 @@ router.post(
         images: imagesUrls,
         colors: parseArray(req.body.colors),
         sizes: parseArray(req.body.sizes),
+        description: req.body.description || '',
+        // ✅ Gửi details dưới dạng string
+        details: req.body.details || '',
         createdAt: new Date(),
       };
 
@@ -187,6 +189,11 @@ router.put(
 
       updateData.colors = safeParse(updateData.colors);
       updateData.sizes = safeParse(updateData.sizes);
+
+      // ✅ Parse description và details
+      updateData.description = updateData.description || '';
+      // ✅ Gửi details dưới dạng string
+      updateData.details = updateData.details || '';
 
       ['price', 'originalPrice', 'total', 'sold'].forEach((key) => {
         if (updateData[key] !== undefined) updateData[key] = Number(updateData[key]);
