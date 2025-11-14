@@ -16,6 +16,7 @@ const orderRoutes = require('./src/routes/order');
 const cartRoutes = require('./src/routes/cart');
 const wishlistRoutes = require('./src/routes/wishlist');
 const voucherRoutes = require('./src/routes/voucherRoutes');
+const reviewRoutes = require('./src/routes/review');
 const path = require('path');
 
 const app = express();
@@ -233,6 +234,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/carts', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // ✅ Lấy PORT từ .env hoặc dùng mặc định là 5000
 const PORT = process.env.PORT || 5000;

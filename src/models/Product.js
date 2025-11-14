@@ -14,7 +14,7 @@ const productSchema = new mongoose.Schema({
   sizes: { type: [String], default: [] },
   sold: { type: Number, default: 0 },
   total: { type: Number, default: 0 },
-  thumbnail: { type: String, default: '/assets/images/xanh.webp' },
+  thumbnail: { type: String, default: ' ' },
   images: { type: [String], default: ['default.jpg'] },
   delivery: { type: String },
   createdAt: { type: Date, default: Date.now }
