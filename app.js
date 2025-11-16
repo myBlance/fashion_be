@@ -5,10 +5,10 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
-
-// ✅ Đảm bảo require('dotenv') ở đầu file
 require('dotenv').config();
+const path = require('path');
 
+// Routes
 const authRoutes = require('./src/routes/auth');
 const userRoutes = require('./src/routes/user');
 const productRoutes = require('./src/routes/product');
@@ -17,11 +17,11 @@ const cartRoutes = require('./src/routes/cart');
 const wishlistRoutes = require('./src/routes/wishlist');
 const voucherRoutes = require('./src/routes/voucherRoutes');
 const reviewRoutes = require('./src/routes/review');
-const path = require('path');
 
 const app = express();
+const server = http.createServer(app);
 
-// ✅ Lấy URL từ .env
+// --- CORS ---
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   process.env.FRONTEND_VERCEL_URL,
@@ -39,7 +39,8 @@ app.use(cors({
   exposedHeaders: ['Content-Range'],
 }));
 
-const io = new Server(http.createServer(app), {
+// --- Socket.IO ---
+const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST'],
@@ -65,25 +66,27 @@ io.on('connection', (socket) => {
   });
 });
 
+// --- Middlewares ---
 app.use('/uploads', express.static(path.join(__dirname, './src/uploads')));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ✅ Kết nối DB từ .env
-mongoose.connect(process.env.MONGO_URI, {
-  dbName: process.env.MONGO_DB_NAME,
-})
-.then(() => console.log('✅ MongoDB connected'))
-.catch(err => console.log('❌ MongoDB connection error:', err));
+// --- MongoDB ---
+mongoose.connect(process.env.MONGO_URI, { dbName: process.env.MONGO_DB_NAME })
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.log('❌ MongoDB connection error:', err));
 
-// ✅ Import Order và Product model
+// Models
 const Order = require('./src/models/Order');
-const Product = require('./src/models/Product'); // <-- Thêm dòng này
+const Product = require('./src/models/Product');
 
-// ✅ Lấy SePay API Key từ .env
+// SePay API Key
 const SEPAY_API_KEY = process.env.SEPAY_API_KEY;
 
-// --- APIs SePay ---
+
+// =====================================================
+// 🔥 API TẠO ĐƠN HÀNG + QR
+// =====================================================
 app.post('/api/create-order', async (req, res) => {
   const { name, amount, userId, products, shippingAddress } = req.body;
 
@@ -95,14 +98,11 @@ app.post('/api/create-order', async (req, res) => {
   const qrUrl = `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${amount}&addInfo=${orderId}`;
 
   try {
-    // 🔴 CHUYỂN ĐỔI: Chuyển product từ string (id) sang ObjectId
     const convertedProducts = await Promise.all(products.map(async (p) => {
-      const productDoc = await Product.findOne({ id: p.productId }); // <-- Bây giờ Product đã được định nghĩa
-      if (!productDoc) {
-        throw new Error(`Sản phẩm ${p.productId} không tồn tại`);
-      }
+      const productDoc = await Product.findOne({ id: p.productId });
+      if (!productDoc) throw new Error(`Sản phẩm ${p.productId} không tồn tại`);
       return {
-        product: productDoc._id, // Gán ObjectId
+        product: productDoc._id,
         quantity: p.quantity,
         selectedColor: p.color,
         selectedSize: p.size,
@@ -112,14 +112,14 @@ app.post('/api/create-order', async (req, res) => {
     const newOrder = new Order({
       id: orderId,
       user: userId,
-      products: convertedProducts, // Dùng mảng đã chuyển đổi
+      products: convertedProducts,
       totalPrice: amount,
       status: 'pending',
       paymentMethod: 'seepay',
       shippingAddress,
     });
 
-    const savedOrder = await newOrder.save(); // Bây giờ sẽ không lỗi validation
+    const savedOrder = await newOrder.save();
 
     console.log(`🆕 Đã tạo đơn hàng DB: ${savedOrder.id}`);
 
@@ -135,98 +135,133 @@ app.post('/api/create-order', async (req, res) => {
   }
 });
 
+
+// =====================================================
+// 🔥 API CHUẨN CHECK GIAO DỊCH SePay + Anti-Spam
+// =====================================================
+const lastCheckMap = new Map(); // <orderId, timestamp>
+// ✅ Thay đổi thời gian giới hạn từ 3000ms (3s) lên 5000ms (5s)
+const CHECK_INTERVAL = 5000; // 5 giây
+
 async function checkWithSePay(orderId) {
-    try {
-        const res = await axios.get(`https://my.sepay.vn/userapi/transactions/search?addInfo=${orderId}`, {
-            headers: {
-                Authorization: `Bearer ${SEPAY_API_KEY}`,
-                'Content-Type': 'application/json',
-            }
-        });
+  try {
+    const body = {
+      addInfo: orderId,
+      limit: 1
+    };
 
-        if (res.data?.success && res.data?.data?.length > 0) {
-            return res.data.data[0];
-        } else {
-            console.log(`⚠️ SePay trả về success: false hoặc không có dữ liệu cho ${orderId}`);
-            return null;
+    const res = await axios.post(
+      "https://api.sepay.vn/v1/transactions/search",
+      body,
+      {
+        headers: {
+          Authorization: `Bearer ${SEPAY_API_KEY}`,
+          "Content-Type": "application/json"
         }
+      }
+    );
 
-    } catch (err) {
-        console.error('❌ Lỗi khi gọi SePay:', err.response?.data || err.message);
-        return null;
+    if (res.data?.success && res.data?.data?.length > 0) {
+      return res.data.data[0];
     }
+
+    return null;
+  } catch (err) {
+    console.error("❌ Lỗi gọi SePay:", err.response?.data || err.message);
+    return null;
+  }
+}
+
+async function safeCheckWithSePay(orderId) {
+  const now = Date.now();
+  const last = lastCheckMap.get(orderId) || 0;
+
+  // ✅ Sử dụng CHECK_INTERVAL
+  if (now - last < CHECK_INTERVAL) {
+    console.log(`⛔ Bỏ qua check SePay ${orderId}: spam quá nhanh`);
+    return null;
+  }
+
+  lastCheckMap.set(orderId, now);
+  return await checkWithSePay(orderId);
 }
 
 app.post('/api/check-payment-status', async (req, res) => {
-    const { orderId } = req.body;
+  const { orderId } = req.body;
 
-    try {
-      const order = await Order.findOne({ id: orderId });
-      if (!order) {
-        return res.status(404).json({ message: 'Không tìm thấy đơn hàng.' });
-      }
-
-      if (order.status !== 'paid') {
-        const result = await checkWithSePay(orderId);
-
-        if (result && result.status === 'PAID') {
-          order.status = 'paid';
-          await order.save();
-
-          console.log(`✅ Đơn hàng ${orderId} đã thanh toán và cập nhật DB.`);
-
-          io.to(orderId).emit('order_paid', { orderId });
-        }
-      }
-
-      res.json({
-        orderId: order.id,
-        name: order.shippingAddress.fullName || 'Khách hàng',
-        amount: order.totalPrice,
-        status: order.status,
-      });
-    } catch (err) {
-      console.error('❌ Lỗi kiểm tra trạng thái:', err);
-      res.status(500).json({ message: 'Lỗi server.' });
-    }
-});
-
-app.post('/api/webhook', async (req, res) => {
-    const data = req.body;
-    console.log('📩 Nhận webhook từ SePay:', data);
-
-    const content = data.content || data.description || '';
-    const transferAmount = data.transferAmount;
-    const match = content.match(/ORDER\d+/);
-    if (!match) {
-        return res.status(400).json({ message: 'Không tìm thấy orderId trong nội dung.' });
+  try {
+    const order = await Order.findOne({ id: orderId });
+    if (!order) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng.' });
     }
 
-    const orderId = match[0];
+    if (order.status !== 'paid') {
+      const result = await safeCheckWithSePay(orderId);
 
-    try {
-      const order = await Order.findOne({ id: orderId });
-      if (!order) {
-        return res.status(404).json({ message: `Không tìm thấy đơn hàng với orderId: ${orderId}` });
-      }
-
-      if (transferAmount > 0 && order.status !== 'paid') {
+      if (result && (result.status === 'PAID' || result.transferAmount > 0)) {
         order.status = 'paid';
         await order.save();
 
-        console.log(`✅ Đơn hàng ${orderId} cập nhật sang Paid qua webhook.`);
-
-        io.to(orderId).emit('order_paid', { orderId });
+        console.log(`✅ Đơn hàng ${orderId} đã thanh toán (SePay).`);
+        io.to(orderId).emit("order_paid", { orderId });
       }
-
-      res.json({ message: 'Webhook đã xử lý thành công.' });
-    } catch (err) {
-      console.error('❌ Lỗi xử lý webhook:', err);
-      res.status(500).json({ message: 'Lỗi server.' });
     }
+
+    res.json({
+      orderId: order.id,
+      name: order.shippingAddress.fullName || "Khách hàng",
+      amount: order.totalPrice,
+      status: order.status
+    });
+  } catch (err) {
+    console.error("❌ Lỗi check-payment:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
 });
 
-// --- Các route cũ ---
+
+// =====================================================
+// 🔥 WEBHOOK SePay
+// =====================================================
+app.post('/api/webhook', async (req, res) => {
+  const data = req.body;
+  console.log('📩 Nhận webhook SePay:', data);
+
+  const content = data.content || data.description || "";
+  const transferAmount = data.transferAmount;
+  const match = content.match(/ORDER\d+/);
+
+  if (!match) {
+    return res.status(400).json({ message: "Không tìm thấy orderId trong nội dung." });
+  }
+
+  const orderId = match[0];
+
+  try {
+    const order = await Order.findOne({ id: orderId });
+    if (!order) {
+      return res.status(404).json({ message: "Không tìm thấy đơn hàng." });
+    }
+
+    if (transferAmount > 0 && order.status !== "paid") {
+      order.status = "paid";
+      await order.save();
+
+      console.log(`✅ Đơn hàng ${orderId} Paid qua webhook.`);
+      io.to(orderId).emit("order_paid", { orderId });
+    }
+
+    res.json({ message: "Webhook xử lý xong." });
+  } catch (err) {
+    console.error("❌ Lỗi webhook:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+});
+
+
+// =====================================================
+// ROUTES CŨ
+// =====================================================
 app.use('/api/vouchers', voucherRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -236,7 +271,12 @@ app.use('/api/carts', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/reviews', reviewRoutes);
 
-// ✅ Lấy PORT từ .env hoặc dùng mặc định là 5000
+
+// =====================================================
+// SERVER START
+// =====================================================
 const PORT = process.env.PORT || 5000;
-// ✅ Dùng `server` từ `http.createServer` để chạy cả Express và Socket.IO
-io.httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+server.listen(PORT, () => {
+  console.log(`🚀 Server chạy trên port ${PORT}`);
+});
