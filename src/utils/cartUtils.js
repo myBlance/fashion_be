@@ -1,19 +1,37 @@
+// ✅ src/utils/cartUtils.js
 const CartItem = require('../models/CartItem');
 
-async function clearCartAfterOrder(userId, products) {
+const clearCartAfterOrder = async (userId, products) => {
   try {
-    for (const item of products) {
-      await CartItem.deleteOne({
-        userId: userId,
-        productId: item.productId,
-        color: item.color || '',
-        size: item.size || ''
-      });
+    if (!userId || !products || !Array.isArray(products) || products.length === 0) {
+      console.log('⚠️ Không có userId hoặc products hợp lệ để xóa giỏ.', { userId, products });
+      return { deletedCount: 0 };
     }
-    console.log(`🗑️ Đã xóa các sản phẩm trong giỏ hàng của người dùng ${userId} sau khi tạo đơn.`);
+
+    // Lấy danh sách product *string ID* từ đơn hàng
+    const productStringIds = products.map(p => p.product || p.productId).filter(Boolean);
+
+    if (productStringIds.length === 0) {
+      console.log('⚠️ Không tìm thấy product ID nào hợp lệ trong mảng products:', products);
+      return { deletedCount: 0 };
+    }
+
+    // ✅ DÙNG `userId` và `productId` như trong schema DB
+    const result = await CartItem.deleteMany({
+      userId: userId,           // ← string
+      productId: { $in: productStringIds }  // ← string
+    });
+
+    console.log(`🗑️ clearCartAfterOrder: Đã xóa ${result.deletedCount} sản phẩm khỏi giỏ của user ${userId}.`, {
+      userId,
+      productStringIds,
+    });
+
+    return result;
   } catch (err) {
-    console.error('❌ Lỗi khi xóa sản phẩm khỏi giỏ hàng:', err);
+    console.error('❌ Lỗi trong clearCartAfterOrder:', err);
+    throw err;
   }
-}
+};
 
 module.exports = { clearCartAfterOrder };

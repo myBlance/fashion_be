@@ -1,8 +1,11 @@
-// src/routes/orders.js
+// src/routes/order.js
 const express = require('express');
 const Order = require('../models/Order');
 const Product = require('../models/Product'); // Thêm model Product
 const mongoose = require('mongoose');
+const { clearCartAfterOrder } = require('../utils/cartUtils');
+const authenticate = require('../middleware/authMiddleware');
+
 
 const router = express.Router();
 
@@ -124,7 +127,13 @@ router.post('/', async (req, res) => {
   try {
     const { products, ...orderData } = req.body;
 
-    // Chuyển đổi product từ string (id) sang ObjectId
+    // ✅ LẤY userId từ body (vì chưa có token)
+    const userId = orderData.user;
+    if (!userId) {
+      return res.status(400).json({ error: 'User không được xác định.' });
+    }
+
+    // Chuyển string product -> ObjectId
     const populatedProducts = await Promise.all(products.map(async (item) => {
       const productDoc = await Product.findOne({ id: item.product });
       if (!productDoc) {
@@ -132,17 +141,22 @@ router.post('/', async (req, res) => {
       }
       return {
         ...item,
-        product: productDoc._id, // Gán ObjectId
+        product: productDoc._id,
       };
     }));
 
     const newOrder = new Order({
       ...orderData,
+      user: userId, // ✅ Gán lại user để đảm bảo schema
       products: populatedProducts,
     });
 
     const saved = await newOrder.save();
-    // Populate lại sản phẩm sau khi lưu nếu cần trả về thông tin đầy đủ
+
+    // ✅ Gọi xóa giỏ hàng
+    await clearCartAfterOrder(userId, products);
+
+    // Populate lại để trả về đầy đủ sản phẩm
     const populatedOrder = await Order.findById(saved._id)
       .populate('user', 'username email')
       .populate('products.product', 'name price thumbnail images');
@@ -153,6 +167,7 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
 
 /**
  * @route   PUT /api/orders/:id
