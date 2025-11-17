@@ -1,3 +1,4 @@
+// app.js
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -77,11 +78,7 @@ mongoose.connect(process.env.MONGO_URI, {
 
 // ✅ Import Order và Product model
 const Order = require('./src/models/Order');
-const Product = require('./src/models/Product');
-const CartItem = require('./src/models/CartItem'); 
-
-// ✅ Import hàm tiện ích xóa giỏ hàng
-const { clearCartAfterOrder } = require('./src/utils/cartUtils');
+const Product = require('./src/models/Product'); // <-- Thêm dòng này
 
 // ✅ Lấy SePay API Key từ .env
 const SEPAY_API_KEY = process.env.SEPAY_API_KEY;
@@ -94,10 +91,22 @@ app.post('/api/create-order', async (req, res) => {
     return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ thông tin đơn hàng.' });
   }
 
-  const orderId = `ORDER${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+  const orderId = `ORDER${Date.now()}`;
   const qrUrl = `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${amount}&addInfo=${orderId}`;
 
   try {
+    // 🔍 Kiểm tra xem đơn hàng đã tồn tại chưa (idempotency)
+    const existingOrder = await Order.findOne({ id: orderId });
+    if (existingOrder) {
+      console.log(`🔁 Đơn ${orderId} đã tồn tại. Trả về dữ liệu cũ.`);
+      return res.json({
+        orderId: existingOrder.id,
+        qrUrl: `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${existingOrder.totalPrice}&addInfo=${existingOrder.id}`,
+        status: existingOrder.status,
+        amount: existingOrder.totalPrice,
+      });
+    }
+
     // 🔴 CHUYỂN ĐỔI: Chuyển product từ string (id) sang ObjectId
     const convertedProducts = await Promise.all(products.map(async (p) => {
       const productDoc = await Product.findOne({ id: p.productId });
@@ -112,35 +121,60 @@ app.post('/api/create-order', async (req, res) => {
       };
     }));
 
-    // ✅ DÙNG findOneAndUpdate VỚI UPSERT ĐỂ ĐẢM BẢO CHỈ TỒN TẠI 1 ĐƠN DUY NHẤT
-    const result = await Order.findOneAndUpdate(
-      { id: orderId }, // tìm theo id
-      {
-        id: orderId,
-        user: userId,
-        products: convertedProducts,
-        totalPrice: amount,
-        status: 'pending',
-        paymentMethod: 'seepay',
-        shippingAddress,
-      },
-      { upsert: true, new: true } // nếu không tìm thấy, tạo mới
-    );
+    const newOrder = new Order({
+      id: orderId,
+      user: userId,
+      products: convertedProducts,
+      totalPrice: amount,
+      status: 'pending',
+      paymentMethod: 'seepay',
+      shippingAddress,
+    });
 
-    console.log(`🆕 Đã tạo hoặc lấy lại đơn hàng DB: ${result.id}`);
+    const savedOrder = await newOrder.save();
 
-    // ✅ GỌI HÀM XÓA GIỎ HÀNG SAU KHI TẠO ĐƠN
-    await clearCartAfterOrder(userId, products);
+    console.log(`🆕 Đã tạo đơn hàng DB: ${savedOrder.id}`);
 
     res.json({
-      orderId: result.id,
+      orderId: savedOrder.id,
       qrUrl,
-      status: result.status,
-      amount: result.totalPrice,
+      status: savedOrder.status,
+      amount: savedOrder.totalPrice,
     });
   } catch (err) {
     console.error('❌ Lỗi tạo đơn hàng DB:', err);
     res.status(500).json({ message: 'Lỗi server khi tạo đơn.' });
+  }
+});
+
+// --- Thêm endpoint mới để lấy QR cho đơn hàng cũ ---
+app.get('/api/orders/:orderId/seepay-qr', async (req, res) => {
+  const { orderId } = req.params;
+
+  try {
+    const order = await Order.findOne({ id: orderId });
+    if (!order) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng.' });
+    }
+
+    // ✅ Chỉ cho phép nếu đơn đang pending và chưa thanh toán
+    if (order.status !== 'pending' || order.paymentMethod !== 'seepay') {
+      return res.status(400).json({ message: 'Không thể tạo lại QR cho đơn này.' });
+    }
+
+    // ✅ Sinh lại QR URL giống như khi tạo đơn
+    // 🔴 CẢNH BÁO: Nếu bạn dùng `addInfo` để nhận diện đơn trong webhook, phải đảm bảo format khớp
+    const qrUrl = `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${order.totalPrice}&addInfo=${order.id}`;
+
+    res.json({
+      orderId: order.id,
+      qrUrl,
+      amount: order.totalPrice,
+      status: order.status,
+    });
+  } catch (err) {
+    console.error('❌ Lỗi khi lấy QR cho đơn hàng:', err);
+    res.status(500).json({ message: 'Lỗi server khi lấy QR.' });
   }
 });
 
