@@ -25,7 +25,6 @@ const products = [
       "/assets/images/xanh.webp"
     ],
     sale: false,
-    delivery: "free",
     createdAt: new Date("2025-05-01")
   }
 ];

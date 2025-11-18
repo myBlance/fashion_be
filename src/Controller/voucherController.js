@@ -130,7 +130,6 @@ const getAllVouchers = async (req, res) => {
   }
 };
 
-
 const getVoucherById = async (req, res) => {
   try {
     const voucher = await Voucher.findById(req.params.id).populate('createdBy', 'username name');
@@ -220,8 +219,26 @@ const deleteVoucher = async (req, res) => {
 // Nhận/gán voucher cho người dùng (theo code)
 const claimVoucher = async (req, res) => {
   try {
+    console.log('🔒 claimVoucher được gọi');
     const { code } = req.body;
-    const userId = req.user._id; // giả sử đã auth
+    console.log('📋 Mã voucher nhận được:', code);
+
+    // ✅ Kiểm tra xem req.user có tồn tại không
+    console.log('👤 req.user:', req.user);
+
+    const userId = req.user.id;
+    if (!userId) {
+      console.log('❌ userId không tồn tại');
+      return res.status(401).json({
+        success: false,
+        message: 'Bạn chưa đăng nhập hoặc token không hợp lệ.',
+      });
+    }
+
+    console.log('🔍 Tìm voucher với mã:', code.toUpperCase());
+
+    // ✅ Thêm log để kiểm tra model
+    console.log('🔍 Kiểm tra model Voucher:', typeof Voucher);
 
     const voucher = await Voucher.findOne({
       code: code.toUpperCase(),
@@ -230,14 +247,20 @@ const claimVoucher = async (req, res) => {
       validUntil: { $gte: new Date() },
     });
 
+    console.log('🔍 Kết quả tìm voucher:', voucher);
+
     if (!voucher) {
+      console.log('❌ Voucher không tồn tại hoặc đã hết hạn');
       return res.status(404).json({
         success: false,
         message: 'Voucher không tồn tại hoặc đã hết hạn',
       });
     }
 
+    console.log('✅ Voucher tìm thấy:', voucher._id);
+
     // Kiểm tra đã nhận chưa (theo maxUsesPerUser)
+    console.log('🔍 Kiểm tra số lần đã dùng của người dùng');
     const usedCount = await UserVoucher.countDocuments({
       userId,
       voucherId: voucher._id,
@@ -245,6 +268,7 @@ const claimVoucher = async (req, res) => {
     });
 
     if (usedCount >= voucher.maxUsesPerUser) {
+      console.log('❌ Người dùng đã dùng đủ số lần');
       return res.status(400).json({
         success: false,
         message: 'Bạn đã sử dụng voucher này đủ số lần cho phép',
@@ -252,17 +276,20 @@ const claimVoucher = async (req, res) => {
     }
 
     // Kiểm tra còn lượt nhận chung không (nếu maxUses hữu hạn)
+    console.log('🔍 Kiểm tra số lượt nhận chung');
     const totalClaimed = await UserVoucher.countDocuments({
       voucherId: voucher._id,
     });
 
     if (voucher.maxUses > 0 && totalClaimed >= voucher.maxUses) {
+      console.log('❌ Voucher đã hết lượt nhận chung');
       return res.status(400).json({
         success: false,
         message: 'Voucher đã hết lượt sử dụng',
       });
     }
 
+    console.log('📝 Tạo bản ghi UserVoucher mới');
     // Tạo UserVoucher (chưa dùng)
     const userVoucher = new UserVoucher({
       userId,
@@ -270,14 +297,15 @@ const claimVoucher = async (req, res) => {
     });
 
     await userVoucher.save();
+    console.log('✅ Voucher đã được lưu cho người dùng');
+
     res.status(201).json({
       success: true,
       message: 'Nhận voucher thành công!',
-      // Nếu bạn muốn trả về voucher đã nhận
-      // voucher: voucher,
     });
 
   } catch (err) {
+    console.error('❌ Lỗi trong claimVoucher:', err);
     res.status(500).json({
       success: false,
       message: err.message,

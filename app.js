@@ -82,6 +82,7 @@ const Product = require('./src/models/Product'); // <-- Thêm dòng này
 
 // ✅ Lấy SePay API Key từ .env
 const SEPAY_API_KEY = process.env.SEPAY_API_KEY;
+const SEPAY_ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NO;
 
 // --- APIs SePay ---
 app.post('/api/create-order', async (req, res) => {
@@ -92,7 +93,7 @@ app.post('/api/create-order', async (req, res) => {
   }
 
   const orderId = `ORDER${Date.now()}`;
-  const qrUrl = `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${amount}&addInfo=${orderId}`;
+  const qrUrl = `https://img.vietqr.io/image/MB-${SEPAY_ACCOUNT_NO}-print.png?amount=${amount}&addInfo=${orderId}`;
 
   try {
     // 🔍 Kiểm tra xem đơn hàng đã tồn tại chưa (idempotency)
@@ -101,7 +102,7 @@ app.post('/api/create-order', async (req, res) => {
       console.log(`🔁 Đơn ${orderId} đã tồn tại. Trả về dữ liệu cũ.`);
       return res.json({
         orderId: existingOrder.id,
-        qrUrl: `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${existingOrder.totalPrice}&addInfo=${existingOrder.id}`,
+        qrUrl: `https://img.vietqr.io/image/MB-${SEPAY_ACCOUNT_NO}-print.png?amount=${existingOrder.totalPrice}&addInfo=${existingOrder.id}`,
         status: existingOrder.status,
         amount: existingOrder.totalPrice,
       });
@@ -164,7 +165,7 @@ app.get('/api/orders/:orderId/seepay-qr', async (req, res) => {
 
     // ✅ Sinh lại QR URL giống như khi tạo đơn
     // 🔴 CẢNH BÁO: Nếu bạn dùng `addInfo` để nhận diện đơn trong webhook, phải đảm bảo format khớp
-    const qrUrl = `https://img.vietqr.io/image/MB-0917436401-print.png?amount=${order.totalPrice}&addInfo=${order.id}`;
+    const qrUrl = `https://img.vietqr.io/image/MB-${SEPAY_ACCOUNT_NO}-print.png?amount=${order.totalPrice}&addInfo=${order.id}`;
 
     res.json({
       orderId: order.id,

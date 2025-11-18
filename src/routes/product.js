@@ -26,7 +26,7 @@ const upload = multer({ storage });
 router.get('/', async (req, res) => {
   try {
     const { _start = 0, _end = 10, _sort = 'createdAt', _order = 'DESC' } = req.query;
-
+    
     const total = await Product.countDocuments();
     const sort = {};
     sort[_sort] = _order === 'DESC' ? -1 : 1;
@@ -117,7 +117,6 @@ router.post(
         category: req.body.category || '',
         type: req.body.type || '',
         style: req.body.style || '',
-        delivery: req.body.delivery || '',
         price: Number(req.body.price) || 0,
         originalPrice: Number(req.body.originalPrice) || 0,
         total: Number(req.body.total) || 0,
@@ -128,7 +127,6 @@ router.post(
         colors: parseArray(req.body.colors),
         sizes: parseArray(req.body.sizes),
         description: req.body.description || '',
-        // ✅ Gửi details dưới dạng string
         details: req.body.details || '',
         createdAt: new Date(),
       };

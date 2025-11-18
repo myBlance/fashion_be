@@ -3,7 +3,11 @@ const mongoose = require('mongoose');
 const productSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
-  brand: { type: String },
+  brand: { 
+    type: String, 
+    required: true, 
+    default: 'DOLASTYLE'
+  },
   price: { type: Number, required: true },
   originalPrice: { type: Number },
   category: { type: String },
@@ -16,7 +20,6 @@ const productSchema = new mongoose.Schema({
   total: { type: Number, default: 0 },
   thumbnail: { type: String, default: ' ' },
   images: { type: [String], default: ['default.jpg'] },
-  delivery: { type: String },
   createdAt: { type: Date, default: Date.now },
   description: { type: String },
   details: { type: String },
