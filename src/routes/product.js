@@ -114,7 +114,6 @@ router.post(
         id,
         name: req.body.name,
         brand: req.body.brand || '',
-        category: req.body.category || '',
         type: req.body.type || '',
         style: req.body.style || '',
         price: Number(req.body.price) || 0,

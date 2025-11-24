@@ -1,18 +1,19 @@
 // src/routes/order.js
 const express = require('express');
-const Order = require('../models/Order');
-const Product = require('../models/Product'); // Thêm model Product
 const mongoose = require('mongoose');
+const Order = require('../models/Order');
+const Product = require('../models/Product');
+const Voucher = require('../models/Voucher'); // ✅ Import Voucher
+const UserVoucher = require('../models/UserVoucher'); // ✅ Import UserVoucher
 const { clearCartAfterOrder } = require('../utils/cartUtils');
-const authenticate = require('../middleware/authMiddleware');
-
+// const authenticate = require('../middleware/authMiddleware'); // Uncomment nếu dùng middleware
 
 const router = express.Router();
 
 /**
  * @route   GET /api/orders
- * @desc    Lấy danh sách đơn hàng
- * @access  Private (giả sử bạn cần xác thực người dùng)
+ * @desc    Lấy danh sách đơn hàng (có phân trang, lọc, sắp xếp)
+ * @access  Private
  */
 router.get('/', async (req, res) => {
   try {
@@ -24,9 +25,8 @@ router.get('/', async (req, res) => {
     const sortField = _sort === 'id' ? '_id' : _sort;
     const sortOrder = _order === 'ASC' ? 1 : -1;
 
-    // Thêm filter cho user nếu có xác thực
-    // const userId = req.user._id; // Bỏ comment nếu dùng auth
-    const query = { /* user: userId, */ ...filters };
+    // Build query
+    const query = { ...filters };
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -37,24 +37,23 @@ router.get('/', async (req, res) => {
       .sort({ [sortField]: sortOrder })
       .skip(start)
       .limit(limit)
-      .populate('user', 'username email'); // Populate user vẫn như cũ
+      .populate('user', 'username email');
 
-    // Populate sản phẩm thủ công - SỬA ĐỔI TẠI ĐÂY
+    // Populate sản phẩm thủ công (xử lý trường hợp product null hoặc bị xóa)
     const populatedOrders = await Promise.all(orders.map(async (order) => {
       const populatedProducts = await Promise.all(order.products.map(async (item) => {
-        // 🔴 SỬA: Dùng _id (ObjectId) thay vì id (String)
-        const productDetails = await Product.findById(item.product); // item.product là ObjectId
+        // item.product đang lưu ObjectId trong DB
+        const productDetails = await Product.findById(item.product);
         return {
           ...item._doc,
           product: productDetails ? {
             _id: productDetails._id,
             name: productDetails.name,
             price: productDetails.price,
-            image: productDetails.thumbnail || productDetails.images?.[0] || '', // Lấy ảnh đầu tiên nếu thumbnail không có
-            // Thêm các trường khác nếu cần: category, brand, ...
+            image: productDetails.thumbnail || productDetails.images?.[0] || '',
           } : {
             _id: null,
-            name: 'Sản phẩm không tồn tại',
+            name: 'Sản phẩm không tồn tại (đã xóa)',
             price: 0,
             image: '',
           }
@@ -78,20 +77,19 @@ router.get('/', async (req, res) => {
 
 /**
  * @route   GET /api/orders/:id
- * @desc    Lấy chi tiết đơn hàng
+ * @desc    Lấy chi tiết đơn hàng theo ID đơn hàng (custom ID)
  * @access  Private
  */
 router.get('/:id', async (req, res) => {
   try {
     const order = await Order.findOne({ id: req.params.id })
-      .populate('user', 'username email'); // Populate user
+      .populate('user', 'username email');
 
     if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
 
-    // Populate sản phẩm thủ công - SỬA ĐỔI TẠI ĐÂY
+    // Populate sản phẩm thủ công
     const populatedProducts = await Promise.all(order.products.map(async (item) => {
-      // 🔴 SỬA: Dùng _id (ObjectId) thay vì id (String)
-      const productDetails = await Product.findById(item.product); // item.product là ObjectId
+      const productDetails = await Product.findById(item.product);
       return {
         ...item._doc,
         product: productDetails ? {
@@ -120,43 +118,114 @@ router.get('/:id', async (req, res) => {
 
 /**
  * @route   POST /api/orders
- * @desc    Tạo đơn hàng mới
+ * @desc    Tạo đơn hàng mới (Đã thêm shippingMethod)
  * @access  Private
  */
 router.post('/', async (req, res) => {
   try {
-    const { products, ...orderData } = req.body;
+    // ✅ Lấy shippingMethod và shippingFee từ body
+    const { products, shippingMethod, shippingFee, voucherCode, ...orderData } = req.body; // ✅ Nhận voucherCode
 
-    // ✅ LẤY userId từ body (vì chưa có token)
+    // Kiểm tra User
     const userId = orderData.user;
     if (!userId) {
       return res.status(400).json({ error: 'User không được xác định.' });
     }
 
-    // Chuyển string product -> ObjectId
+    // Chuyển đổi ID sản phẩm (String từ FE -> ObjectId trong DB)
     const populatedProducts = await Promise.all(products.map(async (item) => {
+      // Tìm product bằng field 'id' (string) mà FE gửi lên
       const productDoc = await Product.findOne({ id: item.product });
       if (!productDoc) {
-        throw new Error(`Sản phẩm ${item.product} không tồn tại`);
+        throw new Error(`Sản phẩm với ID ${item.product} không tồn tại`);
       }
       return {
         ...item,
-        product: productDoc._id,
+        product: productDoc._id, // Lưu ObjectId vào Order
       };
     }));
 
+    // 🔍 XỬ LÝ VOUCHER (Nếu có)
+    let finalAmount = orderData.totalPrice; // Giả sử FE gửi totalPrice lên
+    let discountAmount = 0;
+    let appliedVoucher = null;
+    let userVoucherRecord = null;
+
+    if (voucherCode) {
+      console.log(`🎫 [Order Route] Đang kiểm tra voucher: ${voucherCode}`);
+      const voucher = await Voucher.findOne({
+        code: voucherCode.toUpperCase(),
+        isActive: true,
+        validFrom: { $lte: new Date() },
+        validUntil: { $gte: new Date() }
+      });
+
+      if (!voucher) {
+        return res.status(400).json({ error: 'Voucher không hợp lệ hoặc đã hết hạn.' });
+      }
+
+      // Kiểm tra UserVoucher
+      userVoucherRecord = await UserVoucher.findOne({ userId, voucherId: voucher._id });
+
+      if (!userVoucherRecord) {
+        return res.status(400).json({ error: 'Bạn chưa lưu voucher này.' });
+      }
+
+      if (userVoucherRecord.usedAt) {
+        return res.status(400).json({ error: 'Voucher này đã được sử dụng.' });
+      }
+
+      // Tính lại subTotal để verify
+      let subTotal = 0;
+      for (const p of populatedProducts) {
+        // p.product là ObjectId, cần query lại giá nếu muốn chính xác tuyệt đối, 
+        // hoặc nếu populatedProducts đã có price thì dùng luôn.
+        // Ở bước trên ta chỉ gán product: productDoc._id, nên cần query lại productDoc
+        const prod = await Product.findById(p.product);
+        if (prod) subTotal += prod.price * p.quantity;
+      }
+
+      if (subTotal < voucher.minOrderAmount) {
+        return res.status(400).json({ error: `Đơn hàng chưa đạt tối thiểu ${voucher.minOrderAmount.toLocaleString()}đ để dùng voucher.` });
+      }
+
+      // Tính giảm giá
+      if (voucher.type === 'percentage') {
+        discountAmount = (subTotal * voucher.value) / 100;
+      } else {
+        discountAmount = voucher.value;
+      }
+
+      if (discountAmount > subTotal) discountAmount = subTotal;
+      finalAmount = subTotal - discountAmount + (shippingFee || 0);
+
+      appliedVoucher = voucher;
+    }
+
     const newOrder = new Order({
       ...orderData,
-      user: userId, // ✅ Gán lại user để đảm bảo schema
+      user: userId,
       products: populatedProducts,
+      shippingMethod: shippingMethod || 'standard',
+      shippingFee: shippingFee || 0,
+      totalPrice: appliedVoucher ? finalAmount : orderData.totalPrice,
+      voucherCode: appliedVoucher ? appliedVoucher.code : null,
+      discountAmount: discountAmount
     });
 
     const saved = await newOrder.save();
 
-    // ✅ Gọi xóa giỏ hàng
+    // ✅ CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
+    if (userVoucherRecord) {
+      userVoucherRecord.usedAt = new Date();
+      userVoucherRecord.orderId = saved._id;
+      await userVoucherRecord.save();
+    }
+
+    // Xóa giỏ hàng sau khi đặt thành công
     await clearCartAfterOrder(userId, products);
 
-    // Populate lại để trả về đầy đủ sản phẩm
+    // Trả về dữ liệu đầy đủ
     const populatedOrder = await Order.findById(saved._id)
       .populate('user', 'username email')
       .populate('products.product', 'name price thumbnail images');
@@ -168,21 +237,23 @@ router.post('/', async (req, res) => {
   }
 });
 
-
 /**
  * @route   PUT /api/orders/:id
- * @desc    Cập nhật đơn hàng
+ * @desc    Cập nhật đơn hàng (bao gồm cả trạng thái và thông tin vận chuyển nếu cần)
  * @access  Private
  */
 router.put('/:id', async (req, res) => {
   try {
-    // Nếu bạn cho phép cập nhật sản phẩm trong đơn, cần xử lý tương tự như POST
-    // Nếu không, chỉ cập nhật các trường khác như status, shippingAddress, v.v.
     const { products, ...updateData } = req.body;
 
+    // Nếu có cập nhật danh sách sản phẩm, cần chuyển đổi lại ID
     if (products) {
-      // Nếu có cập nhật sản phẩm, cần chuyển đổi lại từ string -> ObjectId
       const populatedProducts = await Promise.all(products.map(async (item) => {
+        // Nếu item.product đã là ObjectId thì giữ nguyên, nếu là String ID thì tìm
+        if (mongoose.Types.ObjectId.isValid(item.product)) {
+          return item;
+        }
+
         const productDoc = await Product.findOne({ id: item.product });
         if (!productDoc) {
           throw new Error(`Sản phẩm ${item.product} không tồn tại`);
@@ -195,13 +266,13 @@ router.put('/:id', async (req, res) => {
       updateData.products = populatedProducts;
     }
 
+    // updateData sẽ tự động chứa shippingMethod/shippingFee nếu FE gửi lên
     const updated = await Order.findOneAndUpdate({ id: req.params.id }, updateData, {
       new: true,
     });
 
     if (!updated) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
 
-    // Populate lại để trả về thông tin đầy đủ
     const populatedOrder = await Order.findById(updated._id)
       .populate('user', 'username email')
       .populate('products.product', 'name price thumbnail images');
@@ -225,7 +296,6 @@ router.put('/:id/mark-delivered', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
     }
 
-    // Chỉ cho phép đánh dấu nếu trạng thái là shipped
     if (order.status !== 'shipped') {
       return res.status(400).json({ success: false, message: 'Chỉ có thể đánh dấu đơn hàng đang giao là đã nhận' });
     }
@@ -233,22 +303,20 @@ router.put('/:id/mark-delivered', async (req, res) => {
     order.status = 'delivered';
     await order.save();
 
-    // Populate lại user và products
     const populatedOrder = await Order.findById(order._id)
       .populate('user', 'username email')
       .populate('products.product', 'name price thumbnail images');
 
     res.json({ success: true, order: populatedOrder });
   } catch (err) {
-    console.error('❌ Lỗi PUT /orders/:id/mark-delivered:', err);
+    console.error('❌ Lỗi PUT /mark-delivered:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-
 /**
  * @route   PUT /api/orders/:id/cancel
- * @desc    Hủy đơn hàng (chỉ khi trạng thái là pending hoặc paid)
+ * @desc    Hủy đơn hàng (Logic phức tạp để xử lý ID sản phẩm trước khi lưu)
  * @access  Private
  */
 router.put('/:id/cancel', async (req, res) => {
@@ -259,84 +327,51 @@ router.put('/:id/cancel', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng' });
     }
 
-    // Chỉ cho phép hủy nếu trạng thái là pending hoặc paid
     if (order.status !== 'pending' && order.status !== 'paid') {
       return res.status(400).json({ success: false, message: 'Không thể hủy đơn hàng ở trạng thái này' });
     }
 
-    // 🔴 CHUYỂN ĐỔI: Chuyển các product từ string sang ObjectId trước khi save
-    // Nếu không chuyển đổi, save() sẽ báo lỗi vì schema yêu cầu ObjectId
+    // 🔴 LOGIC CHUYỂN ĐỔI: Đảm bảo products chứa ObjectId hợp lệ trước khi save()
     const convertedProducts = [];
     for (const item of order.products) {
-      // Kiểm tra nếu item.product là string, tức là chưa được populate hoặc là id cũ
+      // Case 1: product là string (custom ID chưa populate)
       if (typeof item.product === 'string') {
         const productDoc = await Product.findOne({ id: item.product });
-        if (!productDoc) {
-          // Nếu không tìm thấy sản phẩm, BỎ QUA item này hoặc có thể giữ lại với product: null
-          // Tùy vào logic kinh doanh, ở đây mình giữ lại với product: null để không mất dữ liệu đơn hàng
-          console.warn(`Sản phẩm ${item.product} không tồn tại khi hủy đơn, giữ lại item với product: null.`);
-          convertedProducts.push({
-            ...item.toObject(), // Dùng toObject() để đảm bảo clean object
-            product: null, // Gán null nếu không tìm thấy
-          });
+        if (productDoc) {
+          convertedProducts.push({ ...item.toObject(), product: productDoc._id });
         } else {
-          // Nếu tìm thấy, chuyển đổi và thêm vào mảng mới
-          convertedProducts.push({
-            ...item.toObject(), // Dùng toObject() để đảm bảo clean object
-            product: productDoc._id, // Gán ObjectId
-          });
+          console.warn(`Sản phẩm ${item.product} không tìm thấy khi hủy đơn. Bỏ qua.`);
         }
-      } else if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
-        // Nếu là ObjectId hợp lệ, giữ nguyên
-        // Dùng toObject() để đảm bảo clean object
+      }
+      // Case 2: product là ObjectId hợp lệ
+      else if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
         convertedProducts.push(item.toObject());
-      } else {
-        // Nếu là ObjectId nhưng không hợp lệ (null, undefined, ...), BỎ QUA item này
-        // hoặc có thể giữ lại nhưng không gán product (sẽ gây lỗi required nếu schema bắt buộc)
-        // Cách an toàn hơn là bỏ qua item này để tránh lỗi validation.
-        console.warn(`Sản phẩm trong đơn ${order.id} có ObjectId không hợp lệ hoặc null/undefined, bỏ qua item.`);
-        console.log('  -> Item problematic:', item._id, item.product); // Log item gây lỗi
-        // continue; // Bỏ qua item này, không thêm vào mảng mới
-        // HOẶC: Nếu schema cho phép product là null, có thể giữ lại với product: null
-        // convertedProducts.push({ ...item.toObject(), product: null }); // Nhưng schema hiện tại là required
-        // Cách tốt nhất là bỏ qua
+      }
+      // Case 3: Lỗi data -> Bỏ qua
+      else {
         continue;
       }
     }
 
-    // Gán lại mảng đã chuyển đổi (và loại bỏ các item không hợp lệ nếu bạn chọn cách bỏ qua) vào order
-    // Quan trọng: Gán lại toàn bộ mảng, không thay đổi từng phần tử
     order.products = convertedProducts;
-
-    // Cập nhật trạng thái thành cancelled
     order.status = 'cancelled';
 
-    let updatedOrder;
-    try {
-      updatedOrder = await order.save(); // Bây giờ save sẽ không lỗi do product đã là ObjectId hoặc null (nếu schema cho phép), hoặc item lỗi đã bị bỏ
-    } catch (saveErr) {
-      console.error('❌ Lỗi khi lưu đơn hàng sau khi cập nhật status:', saveErr);
-      if (saveErr.name === 'ValidationError') {
-        console.error('Validation Error Details:', saveErr.errors);
-      }
-      return res.status(500).json({ success: false, message: 'Lỗi khi lưu đơn hàng', error: saveErr.message });
-    }
+    const updatedOrder = await order.save();
 
-    // Populate lại để trả về thông tin đầy đủ
     const populatedOrder = await Order.findById(updatedOrder._id)
       .populate('user', 'username email')
       .populate('products.product', 'name price thumbnail images');
 
-    res.json({ success: true,  populatedOrder });
+    res.json({ success: true, populatedOrder });
   } catch (err) {
-    console.error('❌ Lỗi PUT /orders/:id/cancel:', err);
+    console.error('❌ Lỗi PUT /cancel:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
 /**
  * @route   DELETE /api/orders/:id
- * @desc    Xoá đơn hàng
+ * @desc    Xoá đơn hàng vĩnh viễn
  * @access  Private
  */
 router.delete('/:id', async (req, res) => {

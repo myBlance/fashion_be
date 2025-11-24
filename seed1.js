@@ -118,13 +118,13 @@ async function seed() {
     const products = [];
     for (let i = 0; i < 50; i++) {
       const brand = brands[Math.floor(Math.random() * brands.length)];
-      const category = categories[Math.floor(Math.random() * categories.length)];
+      const type = categories[Math.floor(Math.random() * categories.length)];
       const colorSet = [...new Set(Array.from({ length: Math.floor(Math.random() * 3) + 2 }, () => colors[Math.floor(Math.random() * colors.length)]))];
       const sizeSet = [...new Set(Array.from({ length: Math.floor(Math.random() * 4) + 2 }, () => sizes[Math.floor(Math.random() * sizes.length)]))];
       const basePrice = Math.floor(Math.random() * 2000000) + 200000; // 200K–2.2M VND
       const discount = Math.random() > 0.7 ? Math.floor(basePrice * 0.2) : 0;
       const price = basePrice - discount;
-      const name = `${brand} ${category.charAt(0).toUpperCase() + category.slice(1)} ${['Basic', 'Premium', 'Slim', 'Oversize'][Math.floor(Math.random() * 4)]}`;
+      const name = `${brand} ${type.charAt(0).toUpperCase() + type.slice(1)} ${['Basic', 'Premium', 'Slim', 'Oversize'][Math.floor(Math.random() * 4)]}`;
 
       const product = new Product({
         id: generateProductId(name, colorSet[0], sizeSet[0]),
@@ -132,7 +132,7 @@ async function seed() {
         brand,
         price,
         originalPrice: basePrice,
-        category,
+        type,
         status: Math.random() > 0.1 ? 'selling' : 'stopped', // 10% stopped
         type: ['casual', 'formal', 'sport'][Math.floor(Math.random() * 3)],
         style: ['modern', 'classic', 'vintage'][Math.floor(Math.random() * 3)],
@@ -140,9 +140,9 @@ async function seed() {
         sizes: sizeSet,
         sold: Math.floor(Math.random() * 200),
         total: 100,
-        thumbnail: `https://placehold.co/300x400?text=${encodeURIComponent(brand + ' ' + category)}`,
+        thumbnail: `https://placehold.co/300x400?text=${encodeURIComponent(brand + ' ' + type)}`,
         images: Array.from({ length: 3 }, (_, j) => `https://placehold.co/600x800?text=IMG${j + 1}-${encodeURIComponent(name)}`),
-        description: `High-quality ${category} from ${brand}. Suitable for daily wear.`,
+        description: `High-quality ${type} from ${brand}. Suitable for daily wear.`,
         details: 'Material: 100% cotton. Machine washable. Imported.',
       });
       products.push(product);

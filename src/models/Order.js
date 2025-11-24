@@ -6,18 +6,36 @@ const OrderSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   products: [
     {
-      // 🔴 Thay đổi: Dùng ObjectId để có thể populate
       product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
       quantity: { type: Number, required: true, default: 1 },
       selectedColor: { type: String },
       selectedSize: { type: String },
     }
   ],
-  // ... các trường khác giữ nguyên
-  totalPrice: { type: Number, required: true },
+  totalPrice: { type: Number, required: true }, // Tổng tiền cuối cùng (đã bao gồm ship và giảm giá)
+
+  // ✅ THÊM MỚI: Phương thức vận chuyển
+  shippingMethod: {
+    type: String,
+    enum: ['standard', 'express'],
+    default: 'standard',
+    required: true
+  },
+
+  // ✅ THÊM MỚI: Phí vận chuyển (để lưu lại giá ship tại thời điểm đặt)
+  shippingFee: {
+    type: Number,
+    default: 0,
+    required: true
+  },
+
+  // ✅ THÊM MỚI: Thông tin voucher
+  voucherCode: { type: String, default: null },
+  discountAmount: { type: Number, default: 0 },
+
   status: {
     type: String,
-    enum: ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'],
+    enum: ['pending', 'awaiting_payment', 'paid', 'processing', 'shipped', 'delivered', 'cancelled'],
     default: 'pending',
   },
   paymentMethod: { type: String, default: 'seepay' },
