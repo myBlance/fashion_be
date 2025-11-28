@@ -378,7 +378,13 @@ router.delete('/:id', async (req, res) => {
   try {
     const deleted = await Order.findOneAndDelete({ id: req.params.id });
     if (!deleted) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
-    res.status(204).end();
+
+    // ✅ Trả về JSON response thay vì 204 empty
+    res.json({
+      success: true,
+      message: 'Đã xóa đơn hàng thành công',
+      data: { id: deleted.id, _id: deleted._id }
+    });
   } catch (err) {
     console.error('❌ Lỗi DELETE /orders/:id:', err);
     res.status(400).json({ error: err.message });
