@@ -22,19 +22,30 @@ const path = require('path');
 
 const app = express();
 
-// ✅ Lấy URL từ .env
+// ✅ Lấy URL từ .env - Lọc bỏ undefined để tránh lỗi
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   process.env.FRONTEND_VERCEL_URL,
-];
+  'http://localhost:5173',
+  'http://localhost:3000',
+].filter(Boolean); // Quan trọng: Lọc bỏ undefined/null
 
+// ✅ QUAN TRỌNG: Sử dụng CORS đơn giản hơn để tránh spam error logs
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Không được phép bởi CORS'));
+    // Cho phép requests không có origin (Postman, mobile apps)
+    if (!origin) {
+      return callback(null, true);
     }
+
+    // Kiểm tra origin có trong allowedOrigins
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // ❌ KHÔNG throw Error vì nó sẽ spam logs trên Render
+    // Thay vào đó, chỉ return false để từ chối request
+    return callback(null, false);
   },
   credentials: true,
   exposedHeaders: ['Content-Range'],
