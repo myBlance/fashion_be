@@ -27,8 +27,6 @@ const names = [
 ];
 const emails = names.map((name, i) => `client${i + 1}@example.com`);
 const phones = Array.from({ length: 10 }, (_, i) => `+8490123${String(4567 + i).padEnd(4, '0').slice(-4)}`);
-
-const brands = ['ZARA', 'H&M', 'Uniqlo', 'LocalBrand', 'Nike', 'Adidas', 'Gucci', 'LV'];
 const categories = ['shirt', 'pants', 'dress', 'jacket', 'shoes', 'accessory'];
 const colors = ['black', 'white', 'red', 'blue', 'gray', 'green', 'yellow', 'pink'];
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
@@ -272,7 +270,7 @@ async function seed() {
           const quantity = Math.floor(Math.random() * 3) + 1;
           const selectedColor = product.colors[Math.floor(Math.random() * product.colors.length)];
           const selectedSize = product.sizes[Math.floor(Math.random() * product.sizes.length)];
-          
+
           // 🔴 FIX: Dùng ObjectId của product trong orders
           selectedProducts.push({
             product: product._id, // ← ObjectId (the actual product document reference)
