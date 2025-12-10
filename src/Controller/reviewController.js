@@ -172,6 +172,8 @@ const getReviewsForAdmin = async (req, res) => {
       .skip(skip)
       .limit(take);
 
+    console.log(`📋 getReviewsForAdmin returning ${reviews.length} items. IDs[0-3]:`, reviews.slice(0, 3).map(r => r._id));
+
     // ✅ Lấy tên và mã sản phẩm theo productId (ObjectId)
     const reviewsWithProductInfo = await Promise.all(reviews.map(async (review) => {
       // ✅ Dùng Product.findById để tìm theo ObjectId
@@ -193,9 +195,62 @@ const getReviewsForAdmin = async (req, res) => {
   }
 };
 
+// GET /api/reviews/:id (cho react-admin getOne)
+const getReviewById = async (req, res) => {
+  try {
+    const { id: rawId } = req.params;
+    const id = rawId.trim(); // Trim whitespace
+    console.log(`🔍 getReviewById called with ID: '${id}' (raw: '${rawId}')`);
+
+    // --- DEEP DEBUG START ---
+    try {
+      const nativeOID = await Review.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
+      console.log('🧐 Native OID check:', nativeOID ? 'FOUND' : 'NOT FOUND');
+
+      const nativeString = await Review.collection.findOne({ _id: id });
+      console.log('🧐 Native String check:', nativeString ? 'FOUND' : 'NOT FOUND');
+
+      if (!nativeOID && !nativeString) {
+        console.log('😱 Review completely missing from DB regardless of ID type');
+      }
+    } catch (e) {
+      console.log('⚠️ Error during native debug check:', e.message);
+    }
+    // --- DEEP DEBUG END ---
+
+    const review = await Review.findById(id).populate('userId', 'username');
+
+    if (!review) {
+      console.log(`❌ Review not found in DB for ID: ${id}`);
+
+      // LOG SAMPLE IDs
+      const sampleReviews = await Review.find().select('_id').limit(5);
+      console.log('📋 Sample Review IDs in DB:', sampleReviews.map(r => r._id));
+
+      return res.status(404).json({
+        success: false,
+        message: `Review not found for ID: ${id}. Check server logs for details.`
+      });
+    }
+
+    const product = await Product.findById(review.productId).select('name id');
+    const reviewWithProductInfo = {
+      ...review.toObject(),
+      productName: product?.name || 'N/A',
+      productCode: product?.id || 'N/A',
+    };
+
+    res.json(reviewWithProductInfo);
+  } catch (err) {
+    console.error('Lỗi khi lấy chi tiết đánh giá:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   createReview,
   getProductReviewsById,
   checkReviewExists,
   getReviewsForAdmin,
+  getReviewById,
 };

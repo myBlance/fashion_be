@@ -4,9 +4,11 @@ const User = require('../models/User');
 
 exports.getStats = async (req, res) => {
     try {
-        // 1. Total Revenue (from paid orders)
+        const validStatuses = ['confirmed', 'paid', 'processing', 'shipped', 'delivered'];
+
+        // 1. Total Revenue (from valid orders)
         const revenueResult = await Order.aggregate([
-            { $match: { status: { $in: ['paid', 'processing', 'shipped', 'delivered'] } } },
+            { $match: { status: { $in: validStatuses } } },
             { $group: { _id: null, total: { $sum: '$totalPrice' } } }
         ]);
         const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
@@ -30,17 +32,18 @@ exports.getStats = async (req, res) => {
         // 5. Revenue by date (last 7 days)
         const last7Days = new Date();
         last7Days.setDate(last7Days.getDate() - 7);
+        last7Days.setHours(0, 0, 0, 0);
 
-        const revenueByDate = await Order.aggregate([
+        const revenueByDateRaw = await Order.aggregate([
             {
                 $match: {
                     createdAt: { $gte: last7Days },
-                    status: { $in: ['paid', 'processing', 'shipped', 'delivered'] }
+                    status: { $in: validStatuses }
                 }
             },
             {
                 $group: {
-                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+07:00' } },
                     revenue: { $sum: '$totalPrice' },
                     orders: { $sum: 1 }
                 }
@@ -48,9 +51,24 @@ exports.getStats = async (req, res) => {
             { $sort: { _id: 1 } }
         ]);
 
+        // Fill in missing dates
+        const revenueByDate = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+
+            const found = revenueByDateRaw.find(item => item._id === dateStr);
+            revenueByDate.push({
+                _id: dateStr,
+                revenue: found ? found.revenue : 0,
+                orders: found ? found.orders : 0
+            });
+        }
+
         // 6. Top 5 selling products
         const topProducts = await Order.aggregate([
-            { $match: { status: { $in: ['paid', 'processing', 'shipped', 'delivered'] } } },
+            { $match: { status: { $in: validStatuses } } },
             { $unwind: '$products' },
             {
                 $group: {

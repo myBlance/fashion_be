@@ -50,9 +50,9 @@ const createVoucher = async (req, res) => {
 
     // validate date
     if (new Date(validFrom) >= new Date(validUntil)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'validFrom must be before validUntil' 
+        message: 'validFrom must be before validUntil'
       });
     }
 
@@ -74,7 +74,7 @@ const createVoucher = async (req, res) => {
     await voucher.save();
     res.status(201).json({
       success: true,
-       voucher,
+      voucher,
     });
   } catch (err) {
     console.error('Lỗi trong createVoucher:', err);
@@ -109,6 +109,7 @@ const getAllVouchers = async (req, res) => {
     }
 
     const vouchers = await Voucher.find(filters).populate('createdBy', 'username name');
+    console.log(`📋 getAllVouchers returning ${vouchers.length} items. Public: ${isPublic}. IDs[0-3]:`, vouchers.slice(0, 3).map(v => v._id));
 
     // Map dữ liệu an toàn
     const safeVouchers = vouchers.map(v => ({
@@ -132,13 +133,50 @@ const getAllVouchers = async (req, res) => {
 
 const getVoucherById = async (req, res) => {
   try {
-    const voucher = await Voucher.findById(req.params.id).populate('createdBy', 'username name');
-    if (!voucher) {
-      return res.status(404).json({
+    const { id: rawId } = req.params;
+    const id = rawId.trim(); // Trim whitespace
+    console.log(`🔍 getVoucherById called with ID: '${id}' (raw: '${rawId}')`);
+
+    // Validate ID format
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      console.log('❌ Invalid ID format');
+      return res.status(400).json({
         success: false,
-        message: 'Voucher not found',
+        message: `Invalid ID format: ${id}`,
       });
     }
+
+    // --- DEEP DEBUG START ---
+    try {
+      const nativeOID = await Voucher.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
+      console.log('🧐 Native OID check:', nativeOID ? 'FOUND' : 'NOT FOUND');
+
+      const nativeString = await Voucher.collection.findOne({ _id: id });
+      console.log('🧐 Native String check:', nativeString ? 'FOUND' : 'NOT FOUND');
+
+      if (!nativeOID && !nativeString) {
+        console.log('😱 Record completely missing from DB regardless of ID type');
+      }
+    } catch (e) {
+      console.log('⚠️ Error during native debug check:', e.message);
+    }
+    // --- DEEP DEBUG END ---
+
+    const voucher = await Voucher.findById(id).populate('createdBy', 'username name');
+
+    if (!voucher) {
+      console.log(`❌ Voucher not found in DB for ID: ${id}`);
+
+      // LOG SAMPLE IDs
+      const sampleVouchers = await Voucher.find().select('_id').limit(5);
+      console.log('📋 Sample Voucher IDs in DB:', sampleVouchers.map(v => v._id));
+
+      return res.status(404).json({
+        success: false,
+        message: `Voucher not found for ID: ${id}. Check server logs for details.`,
+      });
+    }
+
     // ✅ Trả về đúng cấu trúc
     res.json({
       success: true,
