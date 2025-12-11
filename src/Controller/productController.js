@@ -14,7 +14,7 @@ exports.getAllProducts = async (req, res) => {
             .skip(Number(_start))
             .limit(Number(_end) - Number(_start));
 
-        // ✅ ép tất cả có field id
+        // ép tất cả có field id
         const formatted = products.map((p) => {
             const obj = p.toObject();
             obj.id = obj.id || obj._id;
@@ -34,7 +34,7 @@ exports.getProductById = async (req, res) => {
     try {
         const product =
             (await Product.findOne({ id: req.params.id })) ||
-            (await Product.findById(req.params.id)); // ✅ fallback theo _id
+            (await Product.findById(req.params.id)); // fallback theo _id
 
         if (!product) return res.status(404).json({ error: 'Sản phẩm không tồn tại' });
 
@@ -73,7 +73,7 @@ exports.createProduct = async (req, res) => {
             }
         };
 
-        // ✅ Bắt buộc có tên sản phẩm
+        // Bắt buộc có tên sản phẩm
         if (!req.body.name) {
             return res.status(400).json({ error: 'Thiếu tên sản phẩm' });
         }
@@ -146,9 +146,9 @@ exports.updateProduct = async (req, res) => {
         updateData.colors = safeParse(updateData.colors);
         updateData.sizes = safeParse(updateData.sizes);
 
-        // ✅ Parse description và details
+        // Parse description và details
         updateData.description = updateData.description || '';
-        // ✅ Gửi details dưới dạng string
+        // Gửi details dưới dạng string
         updateData.details = updateData.details || '';
 
         ['price', 'originalPrice', 'total', 'sold'].forEach((key) => {

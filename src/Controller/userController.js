@@ -152,7 +152,7 @@ exports.addAddress = async (req, res) => {
 
         await user.save();
 
-        // ✅ Trả về địa chỉ vừa được thêm (có _id từ MongoDB)
+        // Trả về địa chỉ vừa được thêm (có _id từ MongoDB)
         const addedAddress = user.addresses[user.addresses.length - 1];
         return res.status(200).json({
             success: true,
@@ -212,7 +212,7 @@ exports.updateAddress = async (req, res) => {
 
         await user.save();
 
-        // ✅ Trả về địa chỉ đã được cập nhật
+        // Trả về địa chỉ đã được cập nhật
         return res.status(200).json({
             success: true,
             message: 'Cập nhật địa chỉ thành công',

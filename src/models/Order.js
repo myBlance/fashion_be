@@ -14,7 +14,7 @@ const OrderSchema = new mongoose.Schema({
   ],
   totalPrice: { type: Number, required: true }, // Tổng tiền cuối cùng (đã bao gồm ship và giảm giá)
 
-  // ✅ THÊM MỚI: Phương thức vận chuyển
+  // THÊM MỚI: Phương thức vận chuyển
   shippingMethod: {
     type: String,
     enum: ['standard', 'express'],
@@ -22,14 +22,14 @@ const OrderSchema = new mongoose.Schema({
     required: true
   },
 
-  // ✅ THÊM MỚI: Phí vận chuyển (để lưu lại giá ship tại thời điểm đặt)
+  // THÊM MỚI: Phí vận chuyển (để lưu lại giá ship tại thời điểm đặt)
   shippingFee: {
     type: Number,
     default: 0,
     required: true
   },
 
-  // ✅ THÊM MỚI: Thông tin voucher
+  // THÊM MỚI: Thông tin voucher
   voucherCode: { type: String, default: null },
   discountAmount: { type: Number, default: 0 },
 

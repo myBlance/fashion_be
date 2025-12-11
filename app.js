@@ -6,7 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
 
-// ✅ Đảm bảo require('dotenv') ở đầu file
+// Đảm bảo require('dotenv') ở đầu file
 require('dotenv').config();
 
 const authRoutes = require('./src/routes/auth');
@@ -22,7 +22,7 @@ const path = require('path');
 
 const app = express();
 
-// ✅ Lấy URL từ .env - Lọc bỏ undefined để tránh lỗi
+// Lấy URL từ .env - Lọc bỏ undefined để tránh lỗi
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   process.env.FRONTEND_VERCEL_URL,
@@ -30,7 +30,7 @@ const allowedOrigins = [
   'http://localhost:3000',
 ].filter(Boolean); // Quan trọng: Lọc bỏ undefined/null
 
-// ✅ QUAN TRỌNG: Sử dụng CORS đơn giản hơn để tránh spam error logs
+// QUAN TRỌNG: Sử dụng CORS đơn giản hơn để tránh spam error logs
 app.use(cors({
   origin: function (origin, callback) {
     // Cho phép requests không có origin (Postman, mobile apps)
@@ -81,27 +81,27 @@ app.use('/uploads', express.static(path.join(__dirname, './src/uploads')));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ✅ Kết nối DB từ .env
+// Kết nối DB từ .env
 mongoose.connect(process.env.MONGO_URI, {
   dbName: process.env.MONGO_DB_NAME,
 })
-  .then(() => console.log('✅ MongoDB connected'))
+  .then(() => console.log('MongoDB connected'))
   .catch(err => console.log('❌ MongoDB connection error:', err));
 
-// ✅ Import Order và Product model
+// Import Order và Product model
 const Order = require('./src/models/Order');
 const Product = require('./src/models/Product');
-const CartItem = require('./src/models/CartItem'); // ✅ Import CartItem
-const Voucher = require('./src/models/Voucher'); // ✅ Import Voucher
-const UserVoucher = require('./src/models/UserVoucher'); // ✅ Import UserVoucher
+const CartItem = require('./src/models/CartItem'); // Import CartItem
+const Voucher = require('./src/models/Voucher'); // Import Voucher
+const UserVoucher = require('./src/models/UserVoucher'); // Import UserVoucher
 
-// ✅ Lấy SePay API Key từ .env
+// Lấy SePay API Key từ .env
 const SEPAY_API_KEY = process.env.SEPAY_API_KEY;
 const SEPAY_ACCOUNT_NO = process.env.SEPAY_ACCOUNT_NO;
 
 // --- APIs SePay ---
 app.post('/api/create-order', async (req, res) => {
-  const { name, amount, userId, products, shippingAddress, voucherCode } = req.body; // ✅ Nhận thêm voucherCode
+  const { name, amount, userId, products, shippingAddress, voucherCode } = req.body; // Nhận thêm voucherCode
 
   if (!name || !amount || !userId || !products || !shippingAddress) {
     return res.status(400).json({ message: 'Vui lòng cung cấp đầy đủ thông tin đơn hàng.' });
@@ -198,7 +198,7 @@ app.post('/api/create-order', async (req, res) => {
       // Để an toàn và đồng bộ với Seepay, ta sẽ dùng `finalAmount` này làm `totalPrice`.
 
       appliedVoucher = voucher;
-      console.log(`✅ Voucher hợp lệ. Giảm: ${discountAmount}. Tổng mới: ${finalAmount}`);
+      console.log(`Voucher hợp lệ. Giảm: ${discountAmount}. Tổng mới: ${finalAmount}`);
     }
 
     const newOrder = new Order({
@@ -217,7 +217,7 @@ app.post('/api/create-order', async (req, res) => {
 
     console.log(`🆕 Đã tạo đơn hàng DB: ${savedOrder.id}`);
 
-    // ✅ CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
+    // CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
     if (userVoucherRecord) {
       userVoucherRecord.usedAt = new Date();
       userVoucherRecord.orderId = savedOrder._id;
@@ -225,7 +225,7 @@ app.post('/api/create-order', async (req, res) => {
       console.log(`🎫 Đã đánh dấu voucher ${voucherCode} là đã dùng.`);
     }
 
-    // ✅ XÓA SẢN PHẨM KHỎI GIỎ HÀNG SAU KHI TẠO ĐƠN THÀNH CÔNG
+    // XÓA SẢN PHẨM KHỎI GIỎ HÀNG SAU KHI TẠO ĐƠN THÀNH CÔNG
     try {
       // Mô phỏng logic của cart.js để đảm bảo khớp dữ liệu
       const { ObjectId } = require('mongoose').Types;
@@ -235,8 +235,8 @@ app.post('/api/create-order', async (req, res) => {
         const deleteQuery = {
           userId: uid, // Dùng ObjectId như cart.js (Mongoose sẽ tự cast sang String nếu schema là String)
           productId: item.productId,
-          color: item.color || '', // ✅ Xử lý trường hợp null/undefined thành chuỗi rỗng
-          size: item.size || ''    // ✅ Xử lý trường hợp null/undefined thành chuỗi rỗng
+          color: item.color || '', // Xử lý trường hợp null/undefined thành chuỗi rỗng
+          size: item.size || ''    // Xử lý trường hợp null/undefined thành chuỗi rỗng
         };
 
         console.log('🗑️ Deleting cart item with query:', JSON.stringify(deleteQuery));
@@ -244,7 +244,7 @@ app.post('/api/create-order', async (req, res) => {
         const result = await CartItem.deleteOne(deleteQuery);
         console.log(`   Deleted count: ${result.deletedCount}`);
       }
-      console.log('✅ Hoàn tất xóa giỏ hàng.');
+      console.log('Hoàn tất xóa giỏ hàng.');
     } catch (cartErr) {
       console.error('⚠️ Lỗi khi xóa giỏ hàng (không ảnh hưởng đơn hàng):', cartErr);
     }
@@ -271,12 +271,12 @@ app.get('/api/orders/:orderId/seepay-qr', async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy đơn hàng.' });
     }
 
-    // ✅ Chỉ cho phép nếu đơn đang pending/awaiting_payment và chưa thanh toán
+    // Chỉ cho phép nếu đơn đang pending/awaiting_payment và chưa thanh toán
     if (!['pending', 'awaiting_payment'].includes(order.status) || order.paymentMethod !== 'seepay') {
       return res.status(400).json({ message: 'Không thể tạo lại QR cho đơn này.' });
     }
 
-    // ✅ Sinh lại QR URL giống như khi tạo đơn
+    // Sinh lại QR URL giống như khi tạo đơn
     // 🔴 CẢNH BÁO: Nếu bạn dùng `addInfo` để nhận diện đơn trong webhook, phải đảm bảo format khớp
     const qrUrl = `https://img.vietqr.io/image/MB-${SEPAY_ACCOUNT_NO}-print.png?amount=${order.totalPrice}&addInfo=${order.id}`;
 
@@ -330,7 +330,7 @@ app.post('/api/check-payment-status', async (req, res) => {
         order.status = 'paid';
         await order.save();
 
-        console.log(`✅ Đơn hàng ${orderId} đã thanh toán và cập nhật DB.`);
+        console.log(`Đơn hàng ${orderId} đã thanh toán và cập nhật DB.`);
 
         io.to(orderId).emit('order_paid', { orderId });
       }
@@ -371,7 +371,7 @@ app.post('/api/webhook', async (req, res) => {
       order.status = 'paid';
       await order.save();
 
-      console.log(`✅ Đơn hàng ${orderId} cập nhật sang Paid qua webhook.`);
+      console.log(`Đơn hàng ${orderId} cập nhật sang Paid qua webhook.`);
 
       io.to(orderId).emit('order_paid', { orderId });
     }
@@ -394,7 +394,7 @@ app.use('/api/carts', cartRoutes);
 app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/reviews', reviewRoutes);
 
-// ✅ Lấy PORT từ .env hoặc dùng mặc định là 5000
+// Lấy PORT từ .env hoặc dùng mặc định là 5000
 const PORT = process.env.PORT || 5000;
-// ✅ Dùng `server` từ `http.createServer` để chạy cả Express và Socket.IO
+// Dùng `server` từ `http.createServer` để chạy cả Express và Socket.IO
 io.httpServer.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

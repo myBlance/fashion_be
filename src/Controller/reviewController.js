@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Review = require('../models/Review');
 const Order = require('../models/Order');
-const Product = require('../models/Product'); // ✅ Import Product model
+const Product = require('../models/Product'); // Import Product model
 
 const multer = require('multer');
 const path = require('path');
@@ -174,21 +174,21 @@ const getReviewsForAdmin = async (req, res) => {
 
     console.log(`📋 getReviewsForAdmin returning ${reviews.length} items. IDs[0-3]:`, reviews.slice(0, 3).map(r => r._id));
 
-    // ✅ Lấy tên và mã sản phẩm theo productId (ObjectId)
+    // Lấy tên và mã sản phẩm theo productId (ObjectId)
     const reviewsWithProductInfo = await Promise.all(reviews.map(async (review) => {
-      // ✅ Dùng Product.findById để tìm theo ObjectId
-      const product = await Product.findById(review.productId).select('name id'); // ✅ Lấy cả name và id
+      // Dùng Product.findOne để tìm theo custom ID (String) thay vì ObjectId
+      const product = await Product.findOne({ id: review.productId }).select('name id');
       return {
         ...review.toObject(),
         productName: product?.name || 'N/A',
-        productCode: product?.id || 'N/A', // ✅ Mã sản phẩm
+        productCode: product?.id || 'N/A', // Mã sản phẩm
       };
     }));
 
     const total = await Review.countDocuments(filter);
 
     res.header('Content-Range', `items 0-${reviews.length}/${total}`);
-    res.json(reviewsWithProductInfo); // ✅ Trả về dữ liệu có tên và mã sản phẩm
+    res.json(reviewsWithProductInfo); // Trả về dữ liệu có tên và mã sản phẩm
   } catch (err) {
     console.error('Lỗi khi lấy danh sách đánh giá:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -233,7 +233,7 @@ const getReviewById = async (req, res) => {
       });
     }
 
-    const product = await Product.findById(review.productId).select('name id');
+    const product = await Product.findOne({ id: review.productId }).select('name id');
     const reviewWithProductInfo = {
       ...review.toObject(),
       productName: product?.name || 'N/A',
@@ -247,10 +247,30 @@ const getReviewById = async (req, res) => {
   }
 };
 
+// DELETE /api/reviews/:id
+const deleteReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const review = await Review.findById(id);
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: 'Đánh giá không tồn tại' });
+    }
+
+    await Review.findByIdAndDelete(id);
+
+    res.json({ success: true, message: 'Đã xóa đánh giá', id });
+  } catch (err) {
+    console.error('Lỗi khi xóa đánh giá:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   createReview,
   getProductReviewsById,
   checkReviewExists,
   getReviewsForAdmin,
   getReviewById,
+  deleteReview,
 };

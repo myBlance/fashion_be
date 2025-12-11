@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const orderController = require('../Controller/orderController');
+const { protect } = require('../middleware/authMiddleware');
 
 // GET /api/orders
-router.get('/', orderController.getOrders);
+router.get('/', protect, orderController.getOrders);
 
 // GET /api/orders/:id
-router.get('/:id', orderController.getOrderById);
+router.get('/:id', protect, orderController.getOrderById);
 
 // POST /api/orders
 router.post('/', orderController.createOrder);

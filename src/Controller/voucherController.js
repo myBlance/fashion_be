@@ -7,7 +7,7 @@ const createVoucher = async (req, res) => {
   try {
     let bodyData = req.body;
 
-    // ✅ Nếu bodyData là undefined hoặc không phải object, kiểm tra xem có file không
+    // Nếu bodyData là undefined hoặc không phải object, kiểm tra xem có file không
     if (!bodyData || typeof bodyData !== 'object') {
       console.log('⚠️ req.body là:', req.body);
       console.log('⚠️ req có file không?', !!req.file);
@@ -19,7 +19,7 @@ const createVoucher = async (req, res) => {
       });
     }
 
-    // ✅ FormData gửi từ React Admin sẽ có các trường là string, nên cần parse lại
+    // FormData gửi từ React Admin sẽ có các trường là string, nên cần parse lại
     const {
       code,
       name,
@@ -34,7 +34,7 @@ const createVoucher = async (req, res) => {
       isActive
     } = bodyData;
 
-    // ✅ Parse lại các trường số nếu là string
+    // Parse lại các trường số nếu là string
     const parsedValue = typeof value === 'string' ? parseFloat(value) : value;
     const parsedMinOrderAmount = typeof minOrderAmount === 'string' ? parseFloat(minOrderAmount) : minOrderAmount;
     const parsedMaxUses = typeof maxUses === 'string' ? parseInt(maxUses) : maxUses;
@@ -79,7 +79,7 @@ const createVoucher = async (req, res) => {
   } catch (err) {
     console.error('Lỗi trong createVoucher:', err);
 
-    // ✅ Xử lý lỗi duplicate key
+    // Xử lý lỗi duplicate key
     if (err.code === 11000) {
       const field = Object.keys(err.keyValue)[0];
       return res.status(400).json({
@@ -120,7 +120,7 @@ const getAllVouchers = async (req, res) => {
 
     res.json({
       success: true,
-      data: safeVouchers, // ✅ đổi từ safeVouchers → data
+      data: safeVouchers, // đổi từ safeVouchers → data
     });
   } catch (err) {
     console.error('Lỗi trong getAllVouchers:', err);
@@ -177,7 +177,7 @@ const getVoucherById = async (req, res) => {
       });
     }
 
-    // ✅ Trả về đúng cấu trúc
+    // Trả về đúng cấu trúc
     res.json({
       success: true,
       data: voucher,
@@ -261,7 +261,7 @@ const claimVoucher = async (req, res) => {
     const { code } = req.body;
     console.log('📋 Mã voucher nhận được:', code);
 
-    // ✅ Kiểm tra xem req.user có tồn tại không
+    // Kiểm tra xem req.user có tồn tại không
     console.log('👤 req.user:', req.user);
 
     const userId = req.user.id;
@@ -275,7 +275,7 @@ const claimVoucher = async (req, res) => {
 
     console.log('🔍 Tìm voucher với mã:', code.toUpperCase());
 
-    // ✅ Thêm log để kiểm tra model
+    // Thêm log để kiểm tra model
     console.log('🔍 Kiểm tra model Voucher:', typeof Voucher);
 
     const voucher = await Voucher.findOne({
@@ -295,7 +295,7 @@ const claimVoucher = async (req, res) => {
       });
     }
 
-    console.log('✅ Voucher tìm thấy:', voucher._id);
+    console.log('Voucher tìm thấy:', voucher._id);
 
     // Kiểm tra đã nhận chưa (theo maxUsesPerUser)
     console.log('🔍 Kiểm tra số lần đã dùng của người dùng');
@@ -335,7 +335,7 @@ const claimVoucher = async (req, res) => {
     });
 
     await userVoucher.save();
-    console.log('✅ Voucher đã được lưu cho người dùng');
+    console.log('Voucher đã được lưu cho người dùng');
 
     res.status(201).json({
       success: true,
@@ -404,7 +404,7 @@ const getUserVouchers = async (req, res) => {
 
     res.json({
       success: true,
-      data, // ✅ Chuẩn hóa về `data`
+      data, // Chuẩn hóa về `data`
     });
   } catch (err) {
     console.error('❌ Lỗi trong getUserVouchers:', err);

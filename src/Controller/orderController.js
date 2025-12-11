@@ -21,6 +21,11 @@ exports.getOrders = async (req, res) => {
             query.status = status;
         }
 
+        // 🔒 SECURITY: Non-admin users can only see their own orders
+        if (req.user && req.user.role !== 'admin') {
+            query.user = req.user.id;
+        }
+
         const total = await Order.countDocuments(query);
 
         const orders = await Order.find(query)
@@ -72,6 +77,11 @@ exports.getOrderById = async (req, res) => {
 
         if (!order) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
 
+        // 🔒 SECURITY: Check ownership
+        if (req.user.role !== 'admin' && order.user._id.toString() !== req.user.id) {
+            return res.status(403).json({ error: 'Bạn không có quyền xem đơn hàng này' });
+        }
+
         // Populate sản phẩm thủ công
         const populatedProducts = await Promise.all(order.products.map(async (item) => {
             const productDetails = await Product.findById(item.product);
@@ -103,8 +113,8 @@ exports.getOrderById = async (req, res) => {
 
 exports.createOrder = async (req, res) => {
     try {
-        // ✅ Lấy shippingMethod và shippingFee từ body
-        const { products, shippingMethod, shippingFee, voucherCode, ...orderData } = req.body; // ✅ Nhận voucherCode
+        // Lấy shippingMethod và shippingFee từ body
+        const { products, shippingMethod, shippingFee, voucherCode, ...orderData } = req.body; // Nhận voucherCode
 
         // Kiểm tra User
         const userId = orderData.user;
@@ -195,7 +205,7 @@ exports.createOrder = async (req, res) => {
 
         const saved = await newOrder.save();
 
-        // ✅ CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
+        // CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
         if (userVoucherRecord) {
             userVoucherRecord.usedAt = new Date();
             userVoucherRecord.orderId = saved._id;
@@ -339,7 +349,7 @@ exports.deleteOrder = async (req, res) => {
         const deleted = await Order.findOneAndDelete({ id: req.params.id });
         if (!deleted) return res.status(404).json({ error: 'Không tìm thấy đơn hàng' });
 
-        // ✅ Trả về JSON response thay vì 204 empty
+        // Trả về JSON response thay vì 204 empty
         res.json({
             success: true,
             message: 'Đã xóa đơn hàng thành công',

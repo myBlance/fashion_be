@@ -7,7 +7,7 @@ const productController = require('../Controller/productController');
 
 // -------------------- MULTER CONFIG --------------------
 const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir); // ✅ đảm bảo thư mục tồn tại
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir); // đảm bảo thư mục tồn tại
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),

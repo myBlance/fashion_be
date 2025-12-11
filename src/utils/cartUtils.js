@@ -1,4 +1,4 @@
-// ✅ src/utils/cartUtils.js
+// src/utils/cartUtils.js
 const CartItem = require('../models/CartItem');
 
 const clearCartAfterOrder = async (userId, products) => {
@@ -16,7 +16,7 @@ const clearCartAfterOrder = async (userId, products) => {
       return { deletedCount: 0 };
     }
 
-    // ✅ DÙNG `userId` và `productId` như trong schema DB
+    // DÙNG `userId` và `productId` như trong schema DB
     const result = await CartItem.deleteMany({
       userId: userId,           // ← string
       productId: { $in: productStringIds }  // ← string

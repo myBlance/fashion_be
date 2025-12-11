@@ -5,18 +5,18 @@ const User = require('../models/User');
 
 // Middleware xác thực JWT
 const authMiddleware = (req, res, next) => {
-  console.log('🔒 authMiddleware được gọi'); // ✅ Log đầu tiên
-  const token = req.headers.authorization?.split(' ')[1] || 
-                req.cookies?.token || 
-                req.query?.token;
+  console.log('🔒 authMiddleware được gọi'); // Log đầu tiên
+  const token = req.headers.authorization?.split(' ')[1] ||
+    req.cookies?.token ||
+    req.query?.token;
 
-  console.log('🔒 Token nhận được:', token); // ✅ Log token
+  console.log('🔒 Token nhận được:', token); // Log token
 
   if (!token) {
     console.log('🔒 Không có token');
-    return res.status(401).json({ 
+    return res.status(401).json({
       success: false,
-      message: "Authorization token required" 
+      message: "Authorization token required"
     });
   }
 
@@ -25,11 +25,11 @@ const authMiddleware = (req, res, next) => {
     console.log('🔒 Token hợp lệ, decoded =', decoded);
     req.user = decoded;
 
-    // ✅ Thêm log sau khi gán req.user và trước next()
+    // Thêm log sau khi gán req.user và trước next()
     console.log('🔒 Gọi next()...');
     next();
 
-    // ✅ Thêm log sau next() để kiểm tra xem next() có thực sự chạy không
+    // Thêm log sau next() để kiểm tra xem next() có thực sự chạy không
     console.log('🔒 Đã gọi next(), đang chuyển sang hàm route...');
   } catch (error) {
     console.error("Token verification failed:", {
@@ -60,9 +60,9 @@ const admin = async (req, res, next) => {
 
   if (!req.user) {
     console.log('❌ req.user không tồn tại');
-    return res.status(401).json({ 
+    return res.status(401).json({
       success: false,
-      message: "Bạn cần đăng nhập để thực hiện hành động này" 
+      message: "Bạn cần đăng nhập để thực hiện hành động này"
     });
   }
 
@@ -73,27 +73,27 @@ const admin = async (req, res, next) => {
 
     if (!user) {
       console.log('❌ User không tồn tại trong DB');
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
-        message: "Bạn không có quyền thực hiện hành động này" 
+        message: "Bạn không có quyền thực hiện hành động này"
       });
     }
 
     if (user.role !== 'admin') {
       console.log('❌ User không phải admin, role =', user.role);
-      return res.status(403).json({ 
+      return res.status(403).json({
         success: false,
-        message: "Bạn không có quyền thực hiện hành động này" 
+        message: "Bạn không có quyền thực hiện hành động này"
       });
     }
 
-    console.log('✅ User có quyền admin, gọi next()');
+    console.log('User có quyền admin, gọi next()');
     next();
   } catch (error) {
     console.error('❌ Lỗi trong admin middleware:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: "Lỗi server khi kiểm tra quyền admin" 
+    res.status(500).json({
+      success: false,
+      message: "Lỗi server khi kiểm tra quyền admin"
     });
   }
 };
