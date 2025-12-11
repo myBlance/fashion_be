@@ -390,7 +390,7 @@ const getUserVouchers = async (req, res) => {
           discountText,
           conditionText,
           isFreeShip: false,
-          shopName: 'Shop ABC',
+          shopName: 'Dola Style',
           minOrderValue,
           expiryDate,
           discountType: voucher.type || 'fixed',
