@@ -109,7 +109,6 @@ const getAllVouchers = async (req, res) => {
     }
 
     const vouchers = await Voucher.find(filters).populate('createdBy', 'username name');
-    console.log(`📋 getAllVouchers returning ${vouchers.length} items. Public: ${isPublic}. IDs[0-3]:`, vouchers.slice(0, 3).map(v => v._id));
 
     // Map dữ liệu an toàn
     const safeVouchers = vouchers.map(v => ({
@@ -135,7 +134,6 @@ const getVoucherById = async (req, res) => {
   try {
     const { id: rawId } = req.params;
     const id = rawId.trim(); // Trim whitespace
-    console.log(`🔍 getVoucherById called with ID: '${id}' (raw: '${rawId}')`);
 
     // Validate ID format
     if (!id.match(/^[0-9a-fA-F]{24}$/)) {
@@ -149,13 +147,13 @@ const getVoucherById = async (req, res) => {
     // --- DEEP DEBUG START ---
     try {
       const nativeOID = await Voucher.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
-      console.log('🧐 Native OID check:', nativeOID ? 'FOUND' : 'NOT FOUND');
+      console.log(' Native OID check:', nativeOID ? 'FOUND' : 'NOT FOUND');
 
       const nativeString = await Voucher.collection.findOne({ _id: id });
-      console.log('🧐 Native String check:', nativeString ? 'FOUND' : 'NOT FOUND');
+      console.log(' Native String check:', nativeString ? 'FOUND' : 'NOT FOUND');
 
       if (!nativeOID && !nativeString) {
-        console.log('😱 Record completely missing from DB regardless of ID type');
+        console.log(' Record completely missing from DB regardless of ID type');
       }
     } catch (e) {
       console.log('⚠️ Error during native debug check:', e.message);
@@ -169,7 +167,6 @@ const getVoucherById = async (req, res) => {
 
       // LOG SAMPLE IDs
       const sampleVouchers = await Voucher.find().select('_id').limit(5);
-      console.log('📋 Sample Voucher IDs in DB:', sampleVouchers.map(v => v._id));
 
       return res.status(404).json({
         success: false,
@@ -416,11 +413,8 @@ const getUserVouchers = async (req, res) => {
 };
 
 
-// [Tuỳ chọn] Dùng voucher (trong flow tạo đơn hàng)
+
 const useVoucher = async (req, res) => {
-  // Logic này thường nằm trong service tạo đơn hàng
-  // Ví dụ: validate mã, kiểm tra đã dùng chưa, cập nhật usedAt, gắn vào đơn
-  // → Có thể triển khai sau nếu bạn có hệ thống Order
 };
 
 module.exports = {

@@ -51,17 +51,17 @@ exports.createProduct = async (req, res) => {
     try {
         const id = await generateProductId();
 
-        // 🖼 Ảnh đại diện
+        //  Ảnh đại diện
         const thumbnailUrl = req.files?.thumbnail?.[0]
             ? `${req.protocol}://${req.get('host')}/uploads/${req.files.thumbnail[0].filename}`
             : null;
 
-        // 🖼 Ảnh phụ
+        //  Ảnh phụ
         const imagesUrls = req.files?.images
             ? req.files.images.map((f) => `${req.protocol}://${req.get('host')}/uploads/${f.filename}`)
             : [];
 
-        // 🧩 Parse an toàn
+        //  Parse an toàn
         const parseArray = (field) => {
             if (!field) return [];
             try {
@@ -83,7 +83,7 @@ exports.createProduct = async (req, res) => {
             name: req.body.name,
             brand: req.body.brand || '',
             type: req.body.type || '',
-            style: req.body.style || '',
+            style: parseArray(req.body.style),
             price: Number(req.body.price) || 0,
             originalPrice: Number(req.body.originalPrice) || 0,
             total: Number(req.body.total) || 0,
@@ -120,16 +120,36 @@ exports.updateProduct = async (req, res) => {
         delete updateData.id;
         delete updateData._id;
 
-        // 🖼 Thumbnail
-        if (req.files?.thumbnail?.[0]) {
+        //  Thumbnail
+        if (req.body.deleteThumbnail === 'true') {
+            updateData.thumbnail = null;
+        } else if (req.files?.thumbnail?.[0]) {
             updateData.thumbnail = `${req.protocol}://${req.get('host')}/uploads/${req.files.thumbnail[0].filename}`;
         }
 
-        // 🖼 Images
+        //  Images 
+        let finalImages = [];
+
+        // 1. Lấy ảnh cũ (nếu có gửi lên)
+        if (req.body.images) {
+            if (Array.isArray(req.body.images)) {
+                // Filter out empty strings if any
+                finalImages = req.body.images.filter(img => typeof img === 'string' && img.length > 0);
+            } else if (typeof req.body.images === 'string' && req.body.images.length > 0) {
+                finalImages = [req.body.images];
+            }
+        }
+
+        // 2. Lấy ảnh mới (nếu có upload)
         if (req.files?.images?.length > 0) {
-            updateData.images = req.files.images.map(
+            const newImageUrls = req.files.images.map(
                 (f) => `${req.protocol}://${req.get('host')}/uploads/${f.filename}`
             );
+            finalImages = [...finalImages, ...newImageUrls];
+        }
+
+        if (req.body.images || (req.files?.images?.length > 0)) {
+            updateData.images = finalImages;
         }
 
         const safeParse = (val) => {
@@ -145,6 +165,7 @@ exports.updateProduct = async (req, res) => {
 
         updateData.colors = safeParse(updateData.colors);
         updateData.sizes = safeParse(updateData.sizes);
+        updateData.style = safeParse(updateData.style);
 
         // Parse description và details
         updateData.description = updateData.description || '';
