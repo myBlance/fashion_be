@@ -148,9 +148,16 @@ const checkReviewExists = async (req, res) => {
 // GET /api/reviews (cho react-admin)
 const getReviewsForAdmin = async (req, res) => {
   try {
-    const { page = 1, limit = 10, rating, productId, orderId, userId, _start, _end, _sort, _order } = req.query;
+    const { page = 1, limit = 10, rating, productId, orderId, userId, q, _start, _end, _sort, _order } = req.query;
 
     const filter = {};
+    if (q) {
+      filter.$or = [
+        { comment: { $regex: q, $options: 'i' } },
+        { orderId: { $regex: q, $options: 'i' } },
+        { productId: { $regex: q, $options: 'i' } },
+      ];
+    }
     if (rating) filter.rating = parseInt(rating);
     if (productId) filter.productId = productId;
     if (orderId) filter.orderId = orderId;
@@ -172,12 +179,18 @@ const getReviewsForAdmin = async (req, res) => {
       .skip(skip)
       .limit(take);
 
-    console.log(`📋 getReviewsForAdmin returning ${reviews.length} items. IDs[0-3]:`, reviews.slice(0, 3).map(r => r._id));
+
 
     // Lấy tên và mã sản phẩm theo productId (ObjectId)
     const reviewsWithProductInfo = await Promise.all(reviews.map(async (review) => {
-      // Dùng Product.findOne để tìm theo custom ID (String) thay vì ObjectId
-      const product = await Product.findOne({ id: review.productId }).select('name id');
+      // Dùng Product.findOne để tìm theo custom ID (String)
+      let product = await Product.findOne({ id: review.productId }).select('name id');
+
+      // Nếu không tìm thấy và productId là ObjectId hợp lệ, tìm theo _id
+      if (!product && mongoose.Types.ObjectId.isValid(review.productId)) {
+        product = await Product.findById(review.productId).select('name id');
+      }
+
       return {
         ...review.toObject(),
         productName: product?.name || 'N/A',
@@ -199,24 +212,21 @@ const getReviewsForAdmin = async (req, res) => {
 const getReviewById = async (req, res) => {
   try {
     const { id: rawId } = req.params;
-    const id = rawId.trim(); // Trim whitespace
-    console.log(`🔍 getReviewById called with ID: '${id}' (raw: '${rawId}')`);
-
-    // --- DEEP DEBUG START ---
+    const id = rawId.trim();
     try {
       const nativeOID = await Review.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
-      console.log('🧐 Native OID check:', nativeOID ? 'FOUND' : 'NOT FOUND');
+      console.log(' Native OID check:', nativeOID ? 'FOUND' : 'NOT FOUND');
 
       const nativeString = await Review.collection.findOne({ _id: id });
-      console.log('🧐 Native String check:', nativeString ? 'FOUND' : 'NOT FOUND');
+      console.log(' Native String check:', nativeString ? 'FOUND' : 'NOT FOUND');
 
       if (!nativeOID && !nativeString) {
-        console.log('😱 Review completely missing from DB regardless of ID type');
+        console.log(' Review completely missing from DB regardless of ID type');
       }
     } catch (e) {
-      console.log('⚠️ Error during native debug check:', e.message);
+      console.log(' Error during native debug check:', e.message);
     }
-    // --- DEEP DEBUG END ---
+
 
     const review = await Review.findById(id).populate('userId', 'username');
 
@@ -225,7 +235,7 @@ const getReviewById = async (req, res) => {
 
       // LOG SAMPLE IDs
       const sampleReviews = await Review.find().select('_id').limit(5);
-      console.log('📋 Sample Review IDs in DB:', sampleReviews.map(r => r._id));
+      console.log(' Sample Review IDs in DB:', sampleReviews.map(r => r._id));
 
       return res.status(404).json({
         success: false,
@@ -233,7 +243,13 @@ const getReviewById = async (req, res) => {
       });
     }
 
-    const product = await Product.findOne({ id: review.productId }).select('name id');
+    let product = await Product.findOne({ id: review.productId }).select('name id');
+
+    // Nếu không tìm thấy và productId là ObjectId hợp lệ, tìm theo _id
+    if (!product && mongoose.Types.ObjectId.isValid(review.productId)) {
+      product = await Product.findById(review.productId).select('name id');
+    }
+
     const reviewWithProductInfo = {
       ...review.toObject(),
       productName: product?.name || 'N/A',
