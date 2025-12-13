@@ -48,6 +48,14 @@ const createVoucher = async (req, res) => {
       });
     }
 
+    // Validate số âm
+    if (parsedValue < 0 || parsedMinOrderAmount < 0 || parsedMaxUses < 0 || parsedMaxUsesPerUser < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Các trường số (giá trị, đơn hàng tối thiểu, lượt dùng) không được âm'
+      });
+    }
+
     // validate date
     if (new Date(validFrom) >= new Date(validUntil)) {
       return res.status(400).json({
@@ -196,6 +204,15 @@ const updateVoucher = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Voucher not found',
+      });
+    }
+
+    // Validate số âm
+    const checkNegative = [value, minOrderAmount, maxUses, maxUsesPerUser];
+    if (checkNegative.some(val => val !== undefined && val < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Các trường số không được âm'
       });
     }
 

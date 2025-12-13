@@ -24,10 +24,9 @@ const app = express();
 
 // Lấy URL từ .env - Lọc bỏ undefined để tránh lỗi
 const allowedOrigins = [
-  // process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL,
   process.env.FRONTEND_VERCEL_URL,
-  // 'http://localhost:5173',
-  // 'http://localhost:3000',
+
 ].filter(Boolean); // Quan trọng: Lọc bỏ undefined/null
 
 // QUAN TRỌNG: Sử dụng CORS đơn giản hơn để tránh spam error logs
