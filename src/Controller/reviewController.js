@@ -37,7 +37,7 @@ const createReview = async (req, res) => {
     if (err) return res.status(400).json({ success: false, message: err.message });
 
     try {
-      const { orderId, productId, rating, comment } = req.body;
+      const { orderId, productId, rating, comment, selectedColor, selectedSize } = req.body;
 
       if (!orderId || !productId || rating === undefined || rating < 1 || rating > 5) {
         return res.status(400).json({
@@ -75,6 +75,8 @@ const createReview = async (req, res) => {
         rating: Number(rating),
         comment,
         images: imagePaths,
+        selectedColor,
+        selectedSize,
       });
 
       await newReview.save();
