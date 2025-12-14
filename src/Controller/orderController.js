@@ -214,11 +214,36 @@ exports.createOrder = async (req, res) => {
 
         const saved = await newOrder.save();
 
-        // UPDATE SOLD COUNT
+        // UPDATE SOLD COUNT & STOCK (Including Variants)
         for (const item of populatedProducts) {
-            await Product.findByIdAndUpdate(item.product, {
-                $inc: { sold: item.quantity }
-            });
+            // 1. Update Global Sold Count
+            const globalUpdate = { $inc: { sold: item.quantity } };
+
+            // 2. Update Variant Quantity & Sold (if color/size exists)
+            if (item.selectedColor && item.selectedSize) {
+                // Use array filters to update specific variant element
+                await Product.findOneAndUpdate(
+                    {
+                        _id: item.product,
+                        "variants": {
+                            $elemMatch: {
+                                color: item.selectedColor,
+                                size: item.selectedSize
+                            }
+                        }
+                    },
+                    {
+                        $inc: {
+                            "variants.$.quantity": -item.quantity,
+                            "variants.$.sold": item.quantity,
+                            "sold": item.quantity // Also increment global sold here if found
+                        }
+                    }
+                );
+            } else {
+                // Fallback: Just update global sold if no variant info
+                await Product.findByIdAndUpdate(item.product, globalUpdate);
+            }
         }
 
         // CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG

@@ -43,7 +43,12 @@ exports.syncCart = async (req, res) => {
 
         const result = await Promise.all(cartItems.map(async (item) => {
             const product = await Product.findOne({ id: item.productId });
-            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            let stock = 0;
+            if (product) {
+                // Find the specific variant stock
+                const variant = product.variants?.find(v => v.color === item.color && v.size === item.size);
+                stock = variant ? variant.quantity : 0;
+            }
             return {
                 ...item.toObject(),
                 stock
@@ -65,7 +70,12 @@ exports.getCart = async (req, res) => {
         // Populate stock info
         const result = await Promise.all(items.map(async (item) => {
             const product = await Product.findOne({ id: item.productId });
-            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            let stock = 0;
+            if (product) {
+                // Find the specific variant stock
+                const variant = product.variants?.find(v => v.color === item.color && v.size === item.size);
+                stock = variant ? variant.quantity : 0;
+            }
             return {
                 ...item.toObject(),
                 stock
@@ -101,7 +111,11 @@ exports.addToCart = async (req, res) => {
 
             // Get stock info to return
             const product = await Product.findOne({ id: productId });
-            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            let stock = 0;
+            if (product) {
+                const variant = product.variants?.find(v => v.color === (color || '') && v.size === (size || ''));
+                stock = variant ? variant.quantity : 0;
+            }
 
             return res.status(200).json({ ...existing.toObject(), stock });
         }
@@ -121,7 +135,11 @@ exports.addToCart = async (req, res) => {
 
         // Get stock info to return
         const product = await Product.findOne({ id: productId });
-        const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+        let stock = 0;
+        if (product) {
+            const variant = product.variants?.find(v => v.color === (color || '') && v.size === (size || ''));
+            stock = variant ? variant.quantity : 0;
+        }
 
         res.status(201).json({ ...newItem.toObject(), stock });
     } catch (error) {
@@ -231,7 +249,12 @@ exports.updateCartItemVariant = async (req, res) => {
         // Populate stock info
         const result = await Promise.all(cartItems.map(async (item) => {
             const product = await Product.findOne({ id: item.productId });
-            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            let stock = 0;
+            if (product) {
+                // Find the specific variant stock
+                const variant = product.variants?.find(v => v.color === item.color && v.size === item.size);
+                stock = variant ? variant.quantity : 0;
+            }
             return {
                 ...item.toObject(),
                 stock

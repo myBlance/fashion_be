@@ -23,6 +23,13 @@ const productSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
   description: { type: String },
   details: { type: String },
+  // 🔹 New Variants Field
+  variants: [{
+    color: String,
+    size: String,
+    quantity: { type: Number, default: 0 },
+    sold: { type: Number, default: 0 }
+  }]
 });
 
 module.exports = mongoose.model('Product', productSchema);

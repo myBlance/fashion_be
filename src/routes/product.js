@@ -24,6 +24,10 @@ const upload = multer({ storage });
 router.get('/', productController.getAllProducts);
 
 // ======================================================
+// 🔥 GET trending products (top 10 in last 7 days)
+router.get('/trending', productController.getTrendingProducts);
+
+// ======================================================
 // 🟢 GET product by ID
 router.get('/:id', productController.getProductById);
 

@@ -133,6 +133,7 @@ exports.createProduct = async (req, res) => {
             images: imagesUrls,
             colors: parseArray(req.body.colors),
             sizes: parseArray(req.body.sizes),
+            variants: parseArray(req.body.variants), // 🔹 Added variants
             description: req.body.description || '',
             details: req.body.details || '',
             createdAt: new Date(),
@@ -219,6 +220,7 @@ exports.updateProduct = async (req, res) => {
         updateData.colors = safeParse(updateData.colors);
         updateData.sizes = safeParse(updateData.sizes);
         updateData.style = safeParse(updateData.style);
+        updateData.variants = safeParse(updateData.variants); // 🔹 Added variants parsing
 
         // Parse description và details
         updateData.description = updateData.description || '';
@@ -255,6 +257,72 @@ exports.deleteProduct = async (req, res) => {
         res.json({ message: 'Đã xoá sản phẩm' });
     } catch (err) {
         console.error('❌ Lỗi xoá sản phẩm:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Get trending products (top 10 best-selling in last 7 days)
+exports.getTrendingProducts = async (req, res) => {
+    try {
+        const Order = require('../models/Order');
+        const validStatuses = ['confirmed', 'paid', 'processing', 'shipped', 'delivered'];
+
+        // Calculate last 7 days
+        const last7Days = new Date();
+        last7Days.setDate(last7Days.getDate() - 7);
+        last7Days.setHours(0, 0, 0, 0);
+
+        // Aggregate top selling products from orders in last 7 days
+        const trendingProducts = await Order.aggregate([
+            {
+                $match: {
+                    status: { $in: validStatuses },
+                    createdAt: { $gte: last7Days }
+                }
+            },
+            { $unwind: '$products' },
+            {
+                $group: {
+                    _id: '$products.product',
+                    soldQuantity: { $sum: '$products.quantity' }
+                }
+            },
+            { $sort: { soldQuantity: -1 } },
+            { $limit: 10 }
+        ]);
+
+        // Populate product details
+        const populatedProducts = await Promise.all(
+            trendingProducts.map(async (item) => {
+                const product = await Product.findById(item._id);
+                if (!product) return null;
+
+                const clean = product.toObject();
+                clean.id = clean.id || clean._id;
+                clean.trendingSold = item.soldQuantity; // Add trending sold count
+
+                // Format thumbnail
+                if (clean.thumbnail && clean.thumbnail.startsWith('/uploads/')) {
+                    clean.thumbnail = `${req.protocol}://${req.get('host')}${clean.thumbnail}`;
+                }
+
+                // Format images
+                if (clean.images && Array.isArray(clean.images)) {
+                    clean.images = clean.images.map(img =>
+                        img.startsWith('/uploads/') ? `${req.protocol}://${req.get('host')}${img}` : img
+                    );
+                }
+
+                return clean;
+            })
+        );
+
+        // Filter out null products (deleted products)
+        const validProducts = populatedProducts.filter(p => p !== null);
+
+        res.json(validProducts);
+    } catch (err) {
+        console.error('❌ Lỗi lấy sản phẩm trending:', err);
         res.status(500).json({ error: err.message });
     }
 };

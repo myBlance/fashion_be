@@ -4,18 +4,58 @@ const User = require('../models/User');
 
 exports.getStats = async (req, res) => {
     try {
+        const { timeRange = '7days', startDate, endDate } = req.query; // Get timeRange and custom dates
         const validStatuses = ['confirmed', 'paid', 'processing', 'shipped', 'delivered'];
+
+        // Calculate date range based on timeRange parameter
+        let dateFilter = {};
+        const now = new Date();
+
+        switch (timeRange) {
+            case '7days':
+                const last7Days = new Date();
+                last7Days.setDate(last7Days.getDate() - 7);
+                last7Days.setHours(0, 0, 0, 0);
+                dateFilter = { createdAt: { $gte: last7Days } };
+                break;
+            case 'month':
+                const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                dateFilter = { createdAt: { $gte: startOfMonth } };
+                break;
+            case 'year':
+                const startOfYear = new Date(now.getFullYear(), 0, 1);
+                dateFilter = { createdAt: { $gte: startOfYear } };
+                break;
+            case 'custom':
+                if (startDate && endDate) {
+                    const start = new Date(startDate);
+                    start.setHours(0, 0, 0, 0);
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999);
+                    dateFilter = {
+                        createdAt: {
+                            $gte: start,
+                            $lte: end
+                        }
+                    };
+                }
+                break;
+            case 'all':
+            default:
+                dateFilter = {}; // No date filter for 'all'
+                break;
+        }
 
         // 1. Total Revenue (from valid orders)
         const revenueResult = await Order.aggregate([
-            { $match: { status: { $in: validStatuses } } },
+            { $match: { status: { $in: validStatuses }, ...dateFilter } },
             { $group: { _id: null, total: { $sum: '$totalPrice' } } }
         ]);
         const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
 
         // 1.1 Total Profit
         const profitResult = await Order.aggregate([
-            { $match: { status: { $in: validStatuses } } },
+            { $match: { status: { $in: validStatuses }, ...dateFilter } },
             { $unwind: '$products' },
             {
                 $group: {
@@ -49,21 +89,60 @@ exports.getStats = async (req, res) => {
         // 4. Total Users
         const totalUsers = await User.countDocuments({ role: 'client' });
 
-        // 5. Revenue by date (last 7 days)
-        const last7Days = new Date();
-        last7Days.setDate(last7Days.getDate() - 7);
-        last7Days.setHours(0, 0, 0, 0);
+        // 5. Revenue by date - determine date range based on timeRange
+        let chartStartDate;
+        let chartDays;
+
+        switch (timeRange) {
+            case '7days':
+                chartStartDate = new Date();
+                chartStartDate.setDate(chartStartDate.getDate() - 7);
+                chartStartDate.setHours(0, 0, 0, 0);
+                chartDays = 7;
+                break;
+            case 'month':
+                chartStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                chartDays = now.getDate(); // Days from start of month to today
+                break;
+            case 'year':
+                chartStartDate = new Date(now.getFullYear(), 0, 1);
+                chartDays = 12; // Show 12 months for year view
+                break;
+            case 'custom':
+                if (startDate && endDate) {
+                    chartStartDate = new Date(startDate);
+                    chartStartDate.setHours(0, 0, 0, 0);
+                    const endDateObj = new Date(endDate);
+                    endDateObj.setHours(0, 0, 0, 0);
+                    // Calculate number of days between start and end
+                    chartDays = Math.ceil((endDateObj - chartStartDate) / (1000 * 60 * 60 * 24)) + 1;
+                } else {
+                    // Fallback if dates not provided
+                    chartStartDate = new Date();
+                    chartStartDate.setDate(chartStartDate.getDate() - 7);
+                    chartStartDate.setHours(0, 0, 0, 0);
+                    chartDays = 7;
+                }
+                break;
+            case 'all':
+            default:
+                // For 'all', show last 30 days as default
+                chartStartDate = new Date();
+                chartStartDate.setDate(chartStartDate.getDate() - 30);
+                chartStartDate.setHours(0, 0, 0, 0);
+                chartDays = 30;
+                break;
+        }
 
         const revenueByDateRaw = await Order.aggregate([
             {
                 $match: {
-                    createdAt: { $gte: last7Days },
+                    createdAt: { $gte: chartStartDate },
                     status: { $in: validStatuses }
                 }
             },
             {
                 $group: {
-                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+07:00' } },
                     _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+07:00' } },
                     revenue: { $sum: '$totalPrice' },
                     profit: {
@@ -93,7 +172,7 @@ exports.getStats = async (req, res) => {
 
         // Fill in missing dates
         const revenueByDate = [];
-        for (let i = 6; i >= 0; i--) {
+        for (let i = chartDays - 1; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const dateStr = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
@@ -107,9 +186,9 @@ exports.getStats = async (req, res) => {
             });
         }
 
-        // 6. Top 5 selling products
+        // 6. Top 10 selling products
         const topProducts = await Order.aggregate([
-            { $match: { status: { $in: validStatuses } } },
+            { $match: { status: { $in: validStatuses }, ...dateFilter } },
             { $unwind: '$products' },
             {
                 $group: {
@@ -119,7 +198,7 @@ exports.getStats = async (req, res) => {
                 }
             },
             { $sort: { totalQuantity: -1 } },
-            { $limit: 5 }
+            { $limit: 10 }
         ]);
 
         // Populate product details
@@ -130,6 +209,42 @@ exports.getStats = async (req, res) => {
                     productId: item._id,
                     name: product?.name || 'Unknown Product',
                     image: product?.thumbnail || product?.images?.[0] || '',
+                    soldQuantity: item.totalQuantity
+                };
+            })
+        );
+
+        // 6.5. Top 10 profit products
+        const topProfitProducts = await Order.aggregate([
+            { $match: { status: { $in: validStatuses }, ...dateFilter } },
+            { $unwind: '$products' },
+            {
+                $group: {
+                    _id: '$products.product',
+                    totalProfit: {
+                        $sum: {
+                            $multiply: [
+                                { $subtract: ['$products.price', { $ifNull: ['$products.buyPrice', 0] }] },
+                                '$products.quantity'
+                            ]
+                        }
+                    },
+                    totalQuantity: { $sum: '$products.quantity' }
+                }
+            },
+            { $sort: { totalProfit: -1 } },
+            { $limit: 10 }
+        ]);
+
+        // Populate product details for top profit products
+        const populatedTopProfitProducts = await Promise.all(
+            topProfitProducts.map(async (item) => {
+                const product = await Product.findById(item._id);
+                return {
+                    productId: item._id,
+                    name: product?.name || 'Unknown Product',
+                    image: product?.thumbnail || product?.images?.[0] || '',
+                    totalProfit: item.totalProfit,
                     soldQuantity: item.totalQuantity
                 };
             })
@@ -163,6 +278,7 @@ exports.getStats = async (req, res) => {
                 ordersByStatus,
                 revenueByDate,
                 topProducts: populatedTopProducts,
+                topProfitProducts: populatedTopProfitProducts,
                 recentOrders: formattedRecentOrders
             }
         });
