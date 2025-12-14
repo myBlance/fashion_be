@@ -265,7 +265,7 @@ exports.deleteProduct = async (req, res) => {
 exports.getTrendingProducts = async (req, res) => {
     try {
         const Order = require('../models/Order');
-        const validStatuses = ['confirmed', 'paid', 'processing', 'shipped', 'delivered'];
+        const validStatuses = ['confirmed', 'paid', 'shipped', 'delivered'];
 
         // Calculate last 7 days
         const last7Days = new Date();

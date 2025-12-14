@@ -5,7 +5,7 @@ const User = require('../models/User');
 exports.getStats = async (req, res) => {
     try {
         const { timeRange = '7days', startDate, endDate } = req.query; // Get timeRange and custom dates
-        const validStatuses = ['confirmed', 'paid', 'processing', 'shipped', 'delivered'];
+        const validStatuses = ['confirmed', 'paid', 'shipped', 'delivered'];
 
         // Calculate date range based on timeRange parameter
         let dateFilter = {};
