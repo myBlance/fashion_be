@@ -13,6 +13,26 @@ exports.getStats = async (req, res) => {
         ]);
         const totalRevenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
 
+        // 1.1 Total Profit
+        const profitResult = await Order.aggregate([
+            { $match: { status: { $in: validStatuses } } },
+            { $unwind: '$products' },
+            {
+                $group: {
+                    _id: null,
+                    totalProfit: {
+                        $sum: {
+                            $multiply: [
+                                { $subtract: ['$products.price', { $ifNull: ['$products.buyPrice', 0] }] },
+                                '$products.quantity'
+                            ]
+                        }
+                    }
+                }
+            }
+        ]);
+        const totalProfit = profitResult.length > 0 ? profitResult[0].totalProfit : 0;
+
         // 2. Order counts by status
         const orderStats = await Order.aggregate([
             { $group: { _id: '$status', count: { $sum: 1 } } }
@@ -44,7 +64,27 @@ exports.getStats = async (req, res) => {
             {
                 $group: {
                     _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+07:00' } },
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: '+07:00' } },
                     revenue: { $sum: '$totalPrice' },
+                    profit: {
+                        $sum: {
+                            $reduce: {
+                                input: '$products',
+                                initialValue: 0,
+                                in: {
+                                    $add: [
+                                        '$$value',
+                                        {
+                                            $multiply: [
+                                                { $subtract: ['$$this.price', { $ifNull: ['$$this.buyPrice', 0] }] },
+                                                '$$this.quantity'
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     orders: { $sum: 1 }
                 }
             },
@@ -62,6 +102,7 @@ exports.getStats = async (req, res) => {
             revenueByDate.push({
                 _id: dateStr,
                 revenue: found ? found.revenue : 0,
+                profit: found ? found.profit : 0,
                 orders: found ? found.orders : 0
             });
         }
@@ -115,6 +156,7 @@ exports.getStats = async (req, res) => {
             success: true,
             data: {
                 totalRevenue,
+                totalProfit,
                 totalOrders,
                 totalProducts,
                 totalUsers,

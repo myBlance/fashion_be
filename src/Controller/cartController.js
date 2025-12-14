@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const CartItem = require('../models/CartItem');
+const Product = require('../models/Product'); // Import Product
 const { ObjectId } = mongoose.Types;
 
 exports.syncCart = async (req, res) => {
@@ -37,8 +38,19 @@ exports.syncCart = async (req, res) => {
             }
         }
 
-        const cart = await CartItem.find({ userId: uid });
-        res.status(200).json(cart);
+        // Fetch cart items and populate stock info
+        const cartItems = await CartItem.find({ userId: uid });
+
+        const result = await Promise.all(cartItems.map(async (item) => {
+            const product = await Product.findOne({ id: item.productId });
+            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            return {
+                ...item.toObject(),
+                stock
+            };
+        }));
+
+        res.status(200).json(result);
     } catch (error) {
         console.error('Error syncing cart:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -49,7 +61,18 @@ exports.getCart = async (req, res) => {
     try {
         const uid = new ObjectId(req.params.userId);
         const items = await CartItem.find({ userId: uid });
-        res.status(200).json(items);
+
+        // Populate stock info
+        const result = await Promise.all(items.map(async (item) => {
+            const product = await Product.findOne({ id: item.productId });
+            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            return {
+                ...item.toObject(),
+                stock
+            };
+        }));
+
+        res.status(200).json(result);
     } catch (error) {
         console.error('Error fetching cart:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -75,7 +98,12 @@ exports.addToCart = async (req, res) => {
         if (existing) {
             existing.quantity += quantity || 1;
             await existing.save();
-            return res.status(200).json(existing);
+
+            // Get stock info to return
+            const product = await Product.findOne({ id: productId });
+            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+
+            return res.status(200).json({ ...existing.toObject(), stock });
         }
 
         const newItem = new CartItem({
@@ -90,7 +118,12 @@ exports.addToCart = async (req, res) => {
         });
 
         await newItem.save();
-        res.status(201).json(newItem);
+
+        // Get stock info to return
+        const product = await Product.findOne({ id: productId });
+        const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+
+        res.status(201).json({ ...newItem.toObject(), stock });
     } catch (error) {
         console.error('Error adding to cart:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -124,6 +157,7 @@ exports.updateCartItem = async (req, res) => {
     }
 };
 
+
 exports.deleteCartItem = async (req, res) => {
     try {
         let { userId, productId, color, size } = req.body;
@@ -145,6 +179,69 @@ exports.deleteCartItem = async (req, res) => {
         res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error deleting cart item:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+};
+
+exports.updateCartItemVariant = async (req, res) => {
+    try {
+        const { userId, productId, oldColor, oldSize, newColor, newSize } = req.body;
+
+        if (!userId || !productId) {
+            return res.status(400).json({ message: 'Missing required fields' });
+        }
+
+        const uid = new ObjectId(userId);
+
+        // Find the original item
+        const itemToUpdate = await CartItem.findOne({
+            userId: uid,
+            productId,
+            color: oldColor || '',
+            size: oldSize || ''
+        });
+
+        if (!itemToUpdate) {
+            return res.status(404).json({ message: 'Item to update not found' });
+        }
+
+        // Check if there is already an item with the new variant
+        const existingTargetItem = await CartItem.findOne({
+            userId: uid,
+            productId,
+            color: newColor,
+            size: newSize
+        });
+
+        if (existingTargetItem) {
+            // Merge logic: Add quantity to the existing target item and delete the old one
+            existingTargetItem.quantity += itemToUpdate.quantity;
+            await existingTargetItem.save();
+            await CartItem.deleteOne({ _id: itemToUpdate._id });
+        } else {
+            // Update logic: Just update the variant fields
+            itemToUpdate.color = newColor;
+            itemToUpdate.size = newSize;
+            await itemToUpdate.save();
+        }
+
+        // Return the full updated cart list as expected by the frontend service
+        const cartItems = await CartItem.find({ userId: uid });
+
+        // Populate stock info
+        const result = await Promise.all(cartItems.map(async (item) => {
+            const product = await Product.findOne({ id: item.productId });
+            const stock = product ? (product.total || 0) - (product.sold || 0) : 0;
+            return {
+                ...item.toObject(),
+                stock
+            };
+        }));
+
+        res.status(200).json(result);
+
+    } catch (error) {
+        console.error('Error updating cart variant:', error);
         res.status(500).json({ message: 'Server error', error: error.message });
     }
 };

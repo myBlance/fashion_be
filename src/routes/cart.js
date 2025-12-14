@@ -14,6 +14,9 @@ router.post('/', cartController.addToCart);
 // PUT /api/carts/update
 router.put('/update', cartController.updateCartItem);
 
+// PUT /api/carts/update-variant
+router.put('/update-variant', cartController.updateCartItemVariant);
+
 // DELETE /api/carts
 router.delete('/', cartController.deleteCartItem);
 

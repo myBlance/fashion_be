@@ -129,9 +129,18 @@ exports.createOrder = async (req, res) => {
             if (!productDoc) {
                 throw new Error(`Sản phẩm với ID ${item.product} không tồn tại`);
             }
+
+            // CHECK STOCK
+            const availableStock = (productDoc.total || 0) - (productDoc.sold || 0);
+            if (item.quantity > availableStock) {
+                throw new Error(`Sản phẩm "${productDoc.name}" chỉ còn ${availableStock} sản phẩm (bạn đặt ${item.quantity})`);
+            }
+
             return {
                 ...item,
                 product: productDoc._id, // Lưu ObjectId vào Order
+                price: productDoc.price, // Snapshot giá bán
+                buyPrice: productDoc.importPrice || 0, // Snapshot giá nhập (để tính lãi)
             };
         }));
 
@@ -204,6 +213,13 @@ exports.createOrder = async (req, res) => {
         });
 
         const saved = await newOrder.save();
+
+        // UPDATE SOLD COUNT
+        for (const item of populatedProducts) {
+            await Product.findByIdAndUpdate(item.product, {
+                $inc: { sold: item.quantity }
+            });
+        }
 
         // CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
         if (userVoucherRecord) {

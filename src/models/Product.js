@@ -9,6 +9,7 @@ const productSchema = new mongoose.Schema({
     default: 'DOLASTYLE'
   },
   price: { type: Number, required: true },
+  importPrice: { type: Number, default: 0 }, // Giá nhập để tính lợi nhuận
   originalPrice: { type: Number },
   type: { type: String },
   status: { type: String, enum: ['selling', 'stopped', 'sold_out'], default: 'selling' },

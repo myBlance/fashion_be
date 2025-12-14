@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const { validationResult } = require('express-validator');
+const Order = require('../models/Order');
+const Review = require('../models/Review');
 
 exports.getProfile = async (req, res) => {
     try {
@@ -306,4 +309,164 @@ exports.changePassword = async (req, res) => {
 exports.debugTest = async (req, res) => {
     console.log('👤 /users/debug-test được gọi, req.user =', req.user);
     res.json({ message: 'OK from user route', user: req.user });
+};
+
+// --- Admin Functions ---
+
+exports.getUsers = async (req, res) => {
+    try {
+        const { _end, _order, _sort, _start, q } = req.query;
+
+        // 1. Match / Search
+        const matchStage = {};
+        if (q) {
+            matchStage.$or = [
+                { name: { $regex: q, $options: 'i' } },
+                { email: { $regex: q, $options: 'i' } },
+                { username: { $regex: q, $options: 'i' } },
+                { phone: { $regex: q, $options: 'i' } }
+            ];
+        }
+
+        // 2. Sorting
+        const sortField = _sort || 'createdAt';
+        const sortOrder = _order === 'ASC' ? 1 : -1;
+        const sortStage = { [sortField]: sortOrder };
+
+        // 3. Pagination
+        const start = parseInt(_start) || 0;
+        const end = parseInt(_end) || 10;
+        const limit = end - start;
+
+        const pipeline = [
+            // Step 1: Filter Users
+            { $match: matchStage },
+
+            // Step 2: Lookup Orders (Calculate Spent & Products)
+            {
+                $lookup: {
+                    from: 'orders',
+                    let: { userId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ['$user', '$$userId'] },
+                                status: { $in: ['delivered', 'paid', 'shipped'] }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                totalSpent: { $sum: '$totalPrice' },
+                                totalProducts: { $sum: { $sum: '$products.quantity' } }
+                            }
+                        }
+                    ],
+                    as: 'orderStats'
+                }
+            },
+
+            // Step 3: Lookup Reviews (Count Reviews)
+            {
+                $lookup: {
+                    from: 'reviews',
+                    let: { userId: '$_id' },
+                    pipeline: [
+                        { $match: { $expr: { $eq: ['$userId', '$$userId'] } } },
+                        { $count: 'count' }
+                    ],
+                    as: 'reviewStats'
+                }
+            },
+
+            // Step 4: Extract Values & Format
+            {
+                $addFields: {
+                    id: '$_id', // React Admin requires 'id'
+                    totalSpent: { $ifNull: [{ $arrayElemAt: ['$orderStats.totalSpent', 0] }, 0] },
+                    totalProductsBought: { $ifNull: [{ $arrayElemAt: ['$orderStats.totalProducts', 0] }, 0] },
+                    totalReviews: { $ifNull: [{ $arrayElemAt: ['$reviewStats.count', 0] }, 0] }
+                }
+            },
+
+            // Step 5: Sort (Now supports sorting by computed fields!)
+            { $sort: sortStage },
+
+            // Step 6: Fach for Data & Total Count
+            {
+                $facet: {
+                    data: [{ $skip: start }, { $limit: limit }],
+                    totalCount: [{ $count: 'count' }]
+                }
+            }
+        ];
+
+        const results = await User.aggregate(pipeline);
+
+        const users = results[0].data;
+        const total = results[0].totalCount[0] ? results[0].totalCount[0].count : 0;
+
+        // Cleanup intermediate fields if necessary (or just send as is)
+        const formattedUsers = users.map(user => {
+            const { orderStats, reviewStats, __v, password, ...rest } = user;
+            return rest;
+        });
+
+        res.set('X-Total-Count', total);
+        res.set('Access-Control-Expose-Headers', 'X-Total-Count');
+        res.json(formattedUsers);
+
+    } catch (error) {
+        console.error('Lỗi khi lấy danh sách users:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+};
+
+exports.getUserById = async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id).select('-password -__v');
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+        }
+        res.json({ id: user._id, ...user.toObject() });
+    } catch (error) {
+        console.error('Lỗi khi lấy user:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+};
+
+exports.updateUser = async (req, res) => {
+    try {
+        const { name, email, role, phone, active } = req.body;
+        const user = await User.findById(req.params.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+        }
+
+        if (name !== undefined) user.name = name;
+        if (email !== undefined) user.email = email;
+        if (role !== undefined) user.role = role;
+        if (phone !== undefined) user.phone = phone;
+        // if (active !== undefined) user.isActive = active; // Assuming there is an isActive field, if not, remove or add to schema
+
+        await user.save();
+        res.json({ id: user._id, ...user.toObject() });
+    } catch (error) {
+        console.error('Lỗi khi cập nhật user:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
+};
+
+exports.deleteUser = async (req, res) => {
+    try {
+        const user = await User.findByIdAndDelete(req.params.id);
+        if (!user) {
+            return res.status(404).json({ message: 'Không tìm thấy người dùng' });
+        }
+        res.json({ id: user._id, ...user.toObject() });
+    } catch (error) {
+        console.error('Lỗi khi xóa user:', error);
+        res.status(500).json({ message: 'Lỗi server' });
+    }
 };

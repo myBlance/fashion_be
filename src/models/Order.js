@@ -8,6 +8,8 @@ const OrderSchema = new mongoose.Schema({
     {
       product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
       quantity: { type: Number, required: true, default: 1 },
+      price: { type: Number }, // Giá bán tại thời điểm đặt hàng
+      buyPrice: { type: Number }, // Giá nhập tại thời điểm đặt hàng (để tính lãi)
       selectedColor: { type: String },
       selectedSize: { type: String },
     }

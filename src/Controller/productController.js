@@ -78,11 +78,12 @@ exports.createProduct = async (req, res) => {
     try {
         // Validation số âm
         const price = Number(req.body.price);
+        const importPrice = Number(req.body.importPrice); // Added importPrice
         const originalPrice = Number(req.body.originalPrice);
         const total = Number(req.body.total);
         const sold = Number(req.body.sold);
 
-        if (price < 0 || originalPrice < 0 || total < 0 || sold < 0) {
+        if (price < 0 || importPrice < 0 || originalPrice < 0 || total < 0 || sold < 0) {
             return res.status(400).json({ error: 'Giá và số lượng không được là số âm' });
         }
 
@@ -121,7 +122,9 @@ exports.createProduct = async (req, res) => {
             brand: req.body.brand || '',
             type: req.body.type || '',
             style: parseArray(req.body.style),
+            style: parseArray(req.body.style),
             price: price || 0,
+            importPrice: importPrice || 0, // Added importPrice
             originalPrice: originalPrice || 0,
             total: total || 0,
             sold: sold || 0,
@@ -222,7 +225,7 @@ exports.updateProduct = async (req, res) => {
         // Gửi details dưới dạng string
         updateData.details = updateData.details || '';
 
-        ['price', 'originalPrice', 'total', 'sold'].forEach((key) => {
+        ['price', 'importPrice', 'originalPrice', 'total', 'sold'].forEach((key) => {
             if (updateData[key] !== undefined) {
                 const num = Number(updateData[key]);
                 if (num < 0) {

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body } = require('express-validator');
-const { protect } = require('../middleware/authMiddleware');
+const { protect, admin } = require('../middleware/authMiddleware');
 const userController = require('../Controller/userController');
 
 // Áp dụng middleware xác thực cho tất cả route dưới đây
@@ -57,5 +57,12 @@ router.put('/change-password', [
 
 // routes/user.js (debug)
 router.get('/debug-test', userController.debugTest);
+
+
+// --- Admin Routes ---
+router.get('/', admin, userController.getUsers);
+router.get('/:id', admin, userController.getUserById);
+router.put('/:id', admin, userController.updateUser);
+router.delete('/:id', admin, userController.deleteUser);
 
 module.exports = router;
