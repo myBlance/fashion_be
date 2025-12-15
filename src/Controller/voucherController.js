@@ -374,7 +374,7 @@ const getUserVouchers = async (req, res) => {
     const userVouchers = await UserVoucher.find({ userId })
       .populate({
         path: 'voucherId',
-        select: 'code name description type value minOrderAmount validFrom validUntil',
+        select: 'code name description type value minOrderAmount validFrom validUntil maxUses usedCount maxUsesPerUser',
       })
       .sort({ createdAt: -1 });
 
@@ -409,6 +409,9 @@ const getUserVouchers = async (req, res) => {
           expiryDate,
           discountType: voucher.type || 'fixed',
           discountValue,
+          maxUses: voucher.maxUses,
+          usedCount: voucher.usedCount,
+          maxUsesPerUser: voucher.maxUsesPerUser,
         },
         claimedAt: uv.createdAt?.toISOString?.() ?? new Date().toISOString(),
         usedAt: uv.usedAt?.toISOString?.() ?? null,

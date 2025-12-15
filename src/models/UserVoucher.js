@@ -21,6 +21,10 @@ const userVoucherSchema = new mongoose.Schema({
     ref: 'Order', // nếu có hệ thống đơn hàng
     default: null,
   },
+  usageCount: {
+    type: Number,
+    default: 0
+  }
 }, {
   timestamps: true, // createdAt = ngày nhận voucher
 });

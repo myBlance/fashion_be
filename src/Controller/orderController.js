@@ -163,6 +163,13 @@ exports.createOrder = async (req, res) => {
                 return res.status(400).json({ error: 'Voucher không hợp lệ hoặc đã hết hạn.' });
             }
 
+            // 1. Kiểm tra số lượng sử dụng toàn hệ thống
+            // Default to 1 if not defined to prevent infinite usage on legacy data
+            const maxUses = (voucher.maxUses === undefined || voucher.maxUses === null) ? 1 : voucher.maxUses;
+            if (maxUses > 0 && (voucher.usedCount || 0) >= maxUses) {
+                return res.status(400).json({ error: 'Voucher đã hết lượt sử dụng.' });
+            }
+
             // Kiểm tra UserVoucher
             userVoucherRecord = await UserVoucher.findOne({ userId, voucherId: voucher._id });
 
@@ -170,8 +177,13 @@ exports.createOrder = async (req, res) => {
                 return res.status(400).json({ error: 'Bạn chưa lưu voucher này.' });
             }
 
-            if (userVoucherRecord.usedAt) {
-                return res.status(400).json({ error: 'Voucher này đã được sử dụng.' });
+            // 2. Kiểm tra số lần sử dụng của user
+            // Backward compatibility: If usageCount is 0 but usedAt is set, assume 1 usage
+            const currentUsage = userVoucherRecord.usageCount || (userVoucherRecord.usedAt ? 1 : 0);
+            const maxUsesPerUser = (voucher.maxUsesPerUser === undefined || voucher.maxUsesPerUser === null) ? 1 : voucher.maxUsesPerUser;
+
+            if (maxUsesPerUser > 0 && currentUsage >= maxUsesPerUser) {
+                return res.status(400).json({ error: `Bạn đã dùng hết ${maxUsesPerUser} lượt sử dụng cho voucher này.` });
             }
 
             // Tính lại subTotal để verify
@@ -246,11 +258,26 @@ exports.createOrder = async (req, res) => {
             }
         }
 
-        // CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
-        if (userVoucherRecord) {
-            userVoucherRecord.usedAt = new Date();
-            userVoucherRecord.orderId = saved._id;
-            await userVoucherRecord.save();
+        // CẬP NHẬT TRẠNG THÁI VOUCHER
+        if (appliedVoucher) {
+            console.log(`🎫 Updating voucher ${appliedVoucher.code} usage. Current usedCount: ${appliedVoucher.usedCount}`);
+            // Increase global used count
+            const updatedVoucher = await Voucher.findByIdAndUpdate(appliedVoucher._id, { $inc: { usedCount: 1 } }, { new: true });
+            console.log(`🎫 Updated voucher usedCount to: ${updatedVoucher.usedCount}`);
+
+            // Increase user usage count logic using atomic update
+            if (userVoucherRecord) {
+                await UserVoucher.findOneAndUpdate(
+                    { _id: userVoucherRecord._id },
+                    {
+                        $set: {
+                            usedAt: new Date(),
+                            orderId: saved._id
+                        },
+                        $inc: { usageCount: 1 }
+                    }
+                );
+            }
         }
 
         // Xóa giỏ hàng sau khi đặt thành công

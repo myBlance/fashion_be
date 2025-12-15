@@ -55,6 +55,10 @@ const voucherSchema = new mongoose.Schema({
     type: Number,
     default: 1, // 1 lần dùng mỗi người
   },
+  usedCount: {
+    type: Number,
+    default: 0,
+  },
 
   // Trạng thái
   isActive: {

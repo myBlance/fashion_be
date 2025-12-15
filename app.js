@@ -155,6 +155,13 @@ app.post('/api/create-order', async (req, res) => {
         return res.status(400).json({ message: 'Voucher không hợp lệ hoặc đã hết hạn.' });
       }
 
+      // 1. Kiểm tra số lượng sử dụng toàn hệ thống
+      // Default to 1 to prevent infinite usage
+      const maxUses = (voucher.maxUses === undefined || voucher.maxUses === null) ? 1 : voucher.maxUses;
+      if (maxUses > 0 && (voucher.usedCount || 0) >= maxUses) {
+        return res.status(400).json({ message: 'Voucher đã hết lượt sử dụng.' });
+      }
+
       // Kiểm tra UserVoucher
       userVoucherRecord = await UserVoucher.findOne({ userId, voucherId: voucher._id });
 
@@ -162,8 +169,12 @@ app.post('/api/create-order', async (req, res) => {
         return res.status(400).json({ message: 'Bạn chưa lưu voucher này.' });
       }
 
-      if (userVoucherRecord.usedAt) {
-        return res.status(400).json({ message: 'Voucher này đã được sử dụng.' });
+      // 2. Kiểm tra số lần sử dụng của user
+      const currentUsage = userVoucherRecord.usageCount || (userVoucherRecord.usedAt ? 1 : 0);
+      const maxUsesPerUser = (voucher.maxUsesPerUser === undefined || voucher.maxUsesPerUser === null) ? 1 : voucher.maxUsesPerUser;
+
+      if (maxUsesPerUser > 0 && currentUsage >= maxUsesPerUser) {
+        return res.status(400).json({ message: `Bạn đã dùng hết ${maxUsesPerUser} lượt sử dụng cho voucher này.` });
       }
 
       // Kiểm tra điều kiện đơn tối thiểu (Tạm tính tổng tiền hàng chưa ship/giảm)
@@ -217,11 +228,22 @@ app.post('/api/create-order', async (req, res) => {
     console.log(`🆕 Đã tạo đơn hàng DB: ${savedOrder.id}`);
 
     // CẬP NHẬT TRẠNG THÁI VOUCHER LÀ ĐÃ DÙNG
-    if (userVoucherRecord) {
-      userVoucherRecord.usedAt = new Date();
-      userVoucherRecord.orderId = savedOrder._id;
-      await userVoucherRecord.save();
-      console.log(`🎫 Đã đánh dấu voucher ${voucherCode} là đã dùng.`);
+    if (appliedVoucher) {
+      await Voucher.findByIdAndUpdate(appliedVoucher._id, { $inc: { usedCount: 1 } });
+
+      if (userVoucherRecord) {
+        await UserVoucher.findOneAndUpdate(
+          { _id: userVoucherRecord._id },
+          {
+            $set: {
+              usedAt: new Date(),
+              orderId: savedOrder._id
+            },
+            $inc: { usageCount: 1 }
+          }
+        );
+        console.log(`🎫 Đã cập nhật voucher ${voucherCode} usage.`);
+      }
     }
 
     // XÓA SẢN PHẨM KHỎI GIỎ HÀNG SAU KHI TẠO ĐƠN THÀNH CÔNG
