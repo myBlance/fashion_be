@@ -72,12 +72,10 @@ exports.register = async (req, res) => {
             return res.status(409).json({ message: 'Email đã được sử dụng.' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
-
         const newUser = new User({
             username: email, // dùng email làm username
             email,
-            password: hashedPassword,
+            password, // Let User model hash this
             name: `${lastName} ${firstName}`,
             role: 'client',
             phone,

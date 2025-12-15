@@ -118,16 +118,38 @@ const getAllVouchers = async (req, res) => {
 
     const vouchers = await Voucher.find(filters).populate('createdBy', 'username name');
 
-    // Map dữ liệu an toàn
-    const safeVouchers = vouchers.map(v => ({
+    // Map dữ liệu an toàn và tính toán remaining
+    let safeVouchers = vouchers.map(v => ({
       ...v._doc,
       validFrom: v.validFrom ? new Date(v.validFrom).toISOString() : null,
       validUntil: v.validUntil ? new Date(v.validUntil).toISOString() : null,
+      remaining: (v.maxUses || 0) - (v.usedCount || 0), // Computed field
     }));
+
+    // Xử lý Sắp xếp (Sort) thủ công vì có trường computed 'remaining'
+    const sortField = req.query._sort || req.query.sort || 'createdAt';
+    const sortOrder = (req.query._order || req.query.order || 'DESC').toUpperCase();
+
+    safeVouchers.sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      // Xử lý null/undefined
+      if (valA === undefined || valA === null) valA = '';
+      if (valB === undefined || valB === null) valB = '';
+
+      // So sánh
+      if (typeof valA === 'string' && typeof valB === 'string') {
+        return sortOrder === 'ASC' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      } else {
+        return sortOrder === 'ASC' ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+      }
+    });
 
     res.json({
       success: true,
-      data: safeVouchers, // đổi từ safeVouchers → data
+      data: safeVouchers,
+      total: safeVouchers.length // Hỗ trợ pagination phía client nếu cần
     });
   } catch (err) {
     console.error('Lỗi trong getAllVouchers:', err);
