@@ -75,13 +75,16 @@ exports.getStats = async (req, res) => {
 
         // 2. Order counts by status
         const orderStats = await Order.aggregate([
+            { $match: { ...dateFilter } },
             { $group: { _id: '$status', count: { $sum: 1 } } }
         ]);
         const ordersByStatus = {};
         orderStats.forEach(stat => {
             ordersByStatus[stat._id] = stat.count;
         });
-        const totalOrders = await Order.countDocuments();
+
+        // 2.1 Total Orders (Filtered)
+        const totalOrders = await Order.countDocuments({ ...dateFilter });
 
         // 3. Total Products
         const totalProducts = await Product.countDocuments();
@@ -267,6 +270,24 @@ exports.getStats = async (req, res) => {
             paymentMethod: order.paymentMethod
         }));
 
+        // 8. Product counts by Type
+        // Note: Products usually don't have a 'date' filter in the same way (inventory is current state).
+        // However, if we want "Products sold by type in period", we'd need to query Orders.
+        // Assuming user wants "Inventory breakdown", we keep it global. 
+        // BUT, if the user requested "time filter check", they might expect consistency.
+        // Let's keep Product Types as Global Inventory unless specifically asked, 
+        // as filtering "Inventory" by "Orders date" is semantically ambiguous.
+        // Wait, the previous request was just "Products by Type".
+        // Let's stick to global for Product Types to represent "Current Stock/Catalog Structure".
+
+        const productTypeStats = await Product.aggregate([
+            { $group: { _id: '$type', count: { $sum: 1 } } }
+        ]);
+        const productsByType = productTypeStats.map(stat => ({
+            name: stat._id || 'Khác',
+            value: stat.count
+        }));
+
         res.json({
             success: true,
             data: {
@@ -277,6 +298,7 @@ exports.getStats = async (req, res) => {
                 totalUsers,
                 ordersByStatus,
                 revenueByDate,
+                productsByType, // Added new stat
                 topProducts: populatedTopProducts,
                 topProfitProducts: populatedTopProfitProducts,
                 recentOrders: formattedRecentOrders
