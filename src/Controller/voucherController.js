@@ -399,16 +399,19 @@ const getUserVouchers = async (req, res) => {
       return {
         id: uv._id?.toString() || 'unknown-id',
         voucher: {
-          _id: voucher._id?.toString() || 'unknown-voucher-id',
+          ...voucher.toObject(), // Spread all original fields first
+          _id: voucher._id?.toString() || 'unknown-voucher-id', // Ensure ID string
           code: voucher.code || 'NO_CODE',
           discountText,
           conditionText,
           isFreeShip: false,
           shopName: 'Dola Style',
-          minOrderValue,
+          minOrderAmount: minOrderValue, // Ensure minOrderAmount is present using the numeric value
+          minOrderValue, // Keep for backward compatibility if needed
           expiryDate,
-          discountType: voucher.type || 'fixed',
-          discountValue,
+          type: voucher.type, // Explicitly set type
+          value: discountValue, // Explicitly set value
+          discountValue, // Keep for backward compatibility
           maxUses: voucher.maxUses,
           usedCount: voucher.usedCount,
           maxUsesPerUser: voucher.maxUsesPerUser,
